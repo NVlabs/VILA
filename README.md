@@ -49,11 +49,11 @@ VILA is a visual language model (VLM) pretrained with interleaved image-text dat
 
 ### VILA on Jetson Orin
 
-https://github.com/Efficient-Large-Model/VILA-arhieve/assets/7783214/cbb7d733-b4ea-4a16-8a41-96d7ec7dabff
+https://github.com/Efficient-Large-Model/VILA/assets/7783214/6079374c-0787-4bc4-b9c6-e1524b4c9dc4
 
 ### VILA on RTX 4090
 
-https://github.com/Efficient-Large-Model/VILA-OSS/assets/7783214/8d78a86f-417e-43d4-8b37-a54dec3ac0fa
+https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-ad7d-d17c4700539f
 
 </details>
 
