@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="demo_images/vila-logo.jpg" alt="Sublime's custom image"/>
+  <img src="demo_images/vila-logo.jpg" width="20%"/>
 </p>
 
 # VILA: On Pre-training for Visual Language Models
