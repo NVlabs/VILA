@@ -1,24 +1,5 @@
 #!/bin/bash
 
-CODE_PATH=$1
-# for example, lmsys/vicuna-7b-v1.5
-BASE_MODEL_PATH=$2
-# the OUTPUT of stage 1 script
-STAGE1_PATH=$3
-# for example, llava-v1.5-7b-mm-align
-OUTPUT=$4
-
-source ~/.bashrc
-source activate vila
-which python
-cd $CODE_PATH # Path to VILA codebase
-
-export NCCL_IB_SL=1
-export CUDA_DEVICE_MAX_CONNECTIONS=1
-#export NCCL_DEBUG=INFO
-export NCCL_ASYNC_ERROR_HANDLING=1
-#export CUDA_LAUNCH_BLOCKING=1
-
 master_addr=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_ADDR=${master_addr:-"127.0.0.1"}
 export CURRENT_RANK=${SLURM_PROCID:-"0"}
@@ -27,6 +8,22 @@ n_node=${SLURM_JOB_NUM_NODES:-1}
 
 echo "MASTER_ADDR="$MASTER_ADDR
 echo "JobID: $SLURM_JOB_ID | Full list: $worker_list"
+
+CODE_PATH=$1
+# for example, lmsys/vicuna-7b-v1.5
+BASE_MODEL_PATH=$2
+# the OUTPUT of stage 1 script
+STAGE1_PATH=$3
+# for example, llava-v1.5-7b-mm-align
+OUTPUT=$4
+
+export NCCL_IB_SL=1
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+#export NCCL_DEBUG=INFO
+export NCCL_ASYNC_ERROR_HANDLING=1
+#export CUDA_LAUNCH_BLOCKING=1
+
+
 
 n_node=$SLURM_JOB_NUM_NODES
 bs=$((128 / n_node))

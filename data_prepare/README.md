@@ -12,6 +12,18 @@ To train VILA, we used the following datasets:
 ### LLaVa-CC3M-Pretrain
 We use [LLaVA-CC3M-Pretrain-595K](https://huggingface.co/datasets/liuhaotian/LLaVA-CC3M-Pretrain-595K/blob/main/chat.json) to train the visual language projector
 
+```bash
+mkdir -p ./playground/data/LLaVA-Pretrain
+cd ./playground/data/LLaVA-Pretrain
+
+# download chat.json and process
+huggingface-cli download liuhaotian/LLaVA-CC3M-Pretrain-595K chat.json --repo-type dataset --local-dir . --local-dir-use-symlinks False
+mv chat.json LLaVA-CC3M-Pretrain-595K.json
+
+# download images.zip and process
+huggingface-cli download liuhaotian/LLaVA-CC3M-Pretrain-595K images.zip --repo-type dataset --local-dir . --local-dir-use-symlinks False
+unzip images.zip -d images
+```
 
 ### MMC4-Core Dataset
 Due to the limit of compute, we pre-train VILA on the smaller core set of MMC4 instead of the full set. 
@@ -72,6 +84,8 @@ python coyo_splitter.py
 We use this [file](https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/blob/main/llava_v1_5_mix665k.json) in our experiments. Please download this dataset from LLaVA authors.
 
 ```bash
+mkdir -p ./playground/data/LLaVA-Pretrain
+cd ./playground/data/LLaVA-Pretrain
 huggingface-cli download liuhaotian/LLaVA-Instruct-150K llava_v1_5_mix665k.json --repo-type dataset
 ```
 
