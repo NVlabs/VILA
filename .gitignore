@@ -1,0 +1,44 @@
+*_dev.sh
+config.json
+eval-result/
+hostfile 
+core.*
+*.out
+captioner_bk/
+slurm-logs/
+captioner/
+eval/
+hostfile
+*_dev.py
+*.ipynb
+
+# Python
+__pycache__
+*.pyc
+*.egg-info
+dist
+
+# Log
+*.log
+*.log.*
+*.json
+
+# Data
+!**/alpaca-data-conversation.json
+eval/*
+
+# Editor
+.idea
+*.swp
+
+# Other
+.DS_Store
+wandb
+output
+
+checkpoints
+ckpts*
+
+*.pt
+
+playground

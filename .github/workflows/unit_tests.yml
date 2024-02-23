@@ -1,0 +1,46 @@
+name: Unit Tests
+on: [push, pull_request]
+
+concurrency:
+  # run only one unit test for a branch / tag.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: |
+          # change to a single installation bash.
+          pip install black
+          pip install --upgrade pip  # enable PEP 660 support
+          wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.4.2/flash_attn-2.4.2+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
+          pip install flash_attn-2.4.2+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
+          pip install -e .
+          pip install -e ".[train]"
+
+          pip install pytorchvideo
+          pip install decord
+          pip install datasets
+          pip install scikit-learn
+          pip install openai
+
+          pip install git+https://github.com/huggingface/transformers@v4.36.2
+          export PPATH=$(python -c 'import site; print(site.getsitepackages()[0])')
+          cp -rv ./llava/train/transformers_replace/* $PPATH/transformers/models/
+
+      - name: Run tests
+        run: |
+          #TODO(ligeng): switch to pytest
+          for f in tests/*.py; do
+              python $f
+          done

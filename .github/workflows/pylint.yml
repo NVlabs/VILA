@@ -1,0 +1,66 @@
+name: Lint and Commit (for PR)
+# on: [push, pull_request]
+on: [pull_request, ]
+
+jobs:
+  changedfiles:
+    # https://dev.to/scienta/get-changed-files-in-github-actions-1p36
+    runs-on: ubuntu-latest
+    # Map a step output to a job output
+    outputs:
+      all: ${{ steps.changes.outputs.all}}
+      py: ${{ steps.changes.outputs.py }}
+    steps:
+        # Make sure we have some code to diff.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changes
+        # Set outputs using the command.
+        run: |
+          echo "::set-output name=all::$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | xargs)"
+          echo "::set-output name=py::$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep .py$ | xargs)"
+  lint:
+    runs-on: ubuntu-latest
+    needs: changedfiles
+    if: ${{needs.changedfiles.outputs.py}}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.LINT_GIT_TOKEN }}
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: pip install black
+
+      - name: Lint repository on changed files only
+        run: |
+          echo ${{needs.changedfiles.outputs.py}}
+          for f in ${{needs.changedfiles.outputs.py}}; do
+              echo $f
+              black --line-length 120 $f
+          done
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          
+          CHANGED_FILES=$(git diff --name-only | wc -l)
+          # avoid "nothing to commit" error.
+          echo "Prepare to commit $CHANGED_FILES"
+          if [ "$CHANGED_FILES" -gt "0" ]; then
+              echo "Commiting $CHANGED_FILES"
+              git commit -m "[CI-Lint] Fix code style issues with black" -a
+              git push  
+          fi
