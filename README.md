@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="demo_images/vila-logo.jpg" alt="Sublime's custom image"/>
+</p>
+
 # VILA: On Pre-training for Visual Language Models
 
 [![Code License](https://img.shields.io/badge/Code%20License-Apache_2.0-green.svg)](CODE_LICENSE)
