@@ -80,7 +80,7 @@ pip install -e .
 pip install -e ".[train]"
 
 pip install git+https://github.com/huggingface/transformers@v4.36.2
-cp -r ./llava/train/transformers_replace/* ~/anaconda3/envs/vila/lib/python3.10/site-packages/transformers/models/
+cp -rv ./llava/train/transformers_replace/* ~/anaconda3/envs/vila/lib/python3.10/site-packages/transformers/models/
 ```
 
 ## Training

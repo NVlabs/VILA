@@ -1,5 +1,14 @@
 #!/bin/bash
 
+master_addr=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_ADDR=${master_addr:-"127.0.0.1"}
+export CURRENT_RANK=${SLURM_PROCID:-"0"}
+worker_list=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | tr '\n' ' ')
+n_node=${SLURM_JOB_NUM_NODES:-1}
+
+echo "MASTER_ADDR="$MASTER_ADDR
+echo "JobID: $SLURM_JOB_ID | Full list: $worker_list"
+
 n_nodes=1
 bs=16
 # OUTPUT of stage 2 script
@@ -8,7 +17,9 @@ STAGE2_PATH=$1
 OUTPUT=$2
 
 
-deepspeed llava/train/train_mem.py \
+torchrun --nnodes=$n_node --nproc_per_node=8 --master_port=25001 \
+    --master_addr $MASTER_ADDR --node_rank=$CURRENT_RANK \
+    llava/train/train_mem.py \
     --deepspeed ./scripts/zero3.json \
     --model_name_or_path $STAGE2_PATH \
     --version v1 \
