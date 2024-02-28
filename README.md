@@ -171,7 +171,7 @@ python -W ignore llava/eval/run_llava.py \
     --model-name Efficient-Large-Model/VILA-7B \
     --conv-mode vicuna_v1 \
     --query "<image>\n Please describe the traffic condition." \
-    --image-file "av.png"
+    --image-file "demo_images/av.png"
 ```
 
 VILA-13B inference:
@@ -180,7 +180,7 @@ python -W ignore llava/eval/run_llava.py \
     --model-name Efficient-Large-Model/VILA-13B \
     --conv-mode vicuna_v1 \
     --query "<image>\n Please describe the traffic condition." \
-    --image-file "av.png"
+    --image-file "demo_images/av.png"
 ```
 
 ## Quantization and Deployment
