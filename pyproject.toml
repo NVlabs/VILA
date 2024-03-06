@@ -29,7 +29,7 @@ train = ["deepspeed==0.9.5", "ninja", "wandb"]
 
 [project.urls]
 "Homepage" = "https://hanlab.mit.edu/projects/vila"
-"Bug Tracker" = "https://github.com/Efficient-Large-Model/VILA-OSS/issues"
+"Bug Tracker" = "https://github.com/Efficient-Large-Model/VILA/issues"
 
 [tool.setuptools.packages.find]
 exclude = ["assets*", "benchmark*", "docs", "dist*", "playground*", "scripts*", "tests*"]
