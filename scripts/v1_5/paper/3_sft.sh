@@ -23,7 +23,7 @@ torchrun --nnodes=$n_node --nproc_per_node=8 --master_port=25001 \
     --deepspeed ./scripts/zero3.json \
     --model_name_or_path $STAGE2_PATH \
     --version v1 \
-    --data_mixture new_vflan_sharegpt4v_sft \
+    --data_mixture vflan_sharegpt4v_sft \
     --vflan_no_system_prompt True \
     --vision_tower openai/clip-vit-large-patch14-336 \
     --mm_projector_type mlp2x_gelu \
