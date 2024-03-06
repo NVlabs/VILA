@@ -7,7 +7,6 @@ core.*
 captioner_bk/
 slurm-logs/
 captioner/
-eval/
 hostfile
 *_dev.py
 *.ipynb
@@ -25,7 +24,6 @@ dist
 
 # Data
 !**/alpaca-data-conversation.json
-eval/*
 
 # Editor
 .idea
