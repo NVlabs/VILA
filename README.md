@@ -16,6 +16,7 @@ VILA is a visual language model (VLM) pretrained with interleaved image-text dat
 
  
 ## 💡 News
+- [2024/03] VILA is accepted by CVPR 2024!
 - [2024/02] We release [AWQ](https://arxiv.org/pdf/2306.00978.pdf)-quantized 4bit VILA models, deployable on Jetson Orin and laptops through [TinyChat](https://github.com/mit-han-lab/llm-awq/tree/main/tinychat) and [TinyChatEngine](https://github.com/mit-han-lab/TinyChatEngine).
 - [2024/02] VILA is released. We propose interleaved image-text pretraining that enables multi-image VLM. VILA comes with impressive in-context learning capabilities. We open source everything: including training code, evaluation code, datasets, model ckpts.
 - [2023/12] [Paper](https://arxiv.org/abs/2312.07533) is on Arxiv!
