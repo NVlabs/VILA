@@ -1,5 +1,3 @@
-# This file is modified from https://github.com/haotian-liu/LLaVA/
-
 from PIL import Image
 from io import BytesIO
 import base64
@@ -62,6 +60,10 @@ def tokenizer_image_token(prompt, tokenizer, image_token_index=IMAGE_TOKEN_INDEX
             return torch.tensor(input_ids, dtype=torch.long)
         raise ValueError(f'Unsupported tensor type: {return_tensors}')
     return input_ids
+
+
+def is_gemma_tokenizer(tokenizer):
+    return "gemma" in tokenizer.__class__.__name__.lower()
 
 
 def get_model_name_from_path(model_path):
