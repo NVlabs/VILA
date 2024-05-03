@@ -60,6 +60,7 @@ def eval_model(model_name, questions_file, answers_file):
             temperature=0.7,
             max_new_tokens=1024,
             stopping_criteria=[stopping_criteria])
+
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
         try:
             index = outputs.index(conv.sep, len(prompt))

@@ -9,7 +9,7 @@ else
     exit 1
 fi
 
-python -m llava.eval.model_vqa_qbench \
+CUDA_VISIBLE_DEVICES=0 python -m llava.eval.model_vqa_qbench \
     --model-path liuhaotian/llava-v1.5-13b \
     --image-folder ./playground/data/eval/qbench/images_llvisionqa/ \
     --questions-file ./playground/data/eval/qbench/llvisionqa_$1.json \

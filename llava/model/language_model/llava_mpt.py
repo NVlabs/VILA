@@ -33,7 +33,7 @@ class LlavaMPTConfig(MPTConfig):
     model_type = "llava_mpt"
 
 
-class LlavaMPTModel(LlavaMetaModel, MPTModel):
+class LlavaMPTModel(MPTModel, LlavaMetaModel):
     config_class = LlavaMPTConfig
 
     def __init__(self, config: MPTConfig):

@@ -24,6 +24,8 @@ import torch.nn as nn
 from transformers import AutoConfig, AutoModelForCausalLM, \
                          MistralConfig, MistralModel, MistralForCausalLM
 
+from .modeling_mixtral_long_context import MixtralModel, MixtralForCausalLM
+
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ..llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
@@ -34,7 +36,7 @@ class LlavaMistralConfig(MistralConfig):
     pretraining_tp = 1
 
 
-class LlavaMistralModel(LlavaMetaModel, MistralModel):
+class LlavaMistralModel(MistralModel, LlavaMetaModel):
     config_class = LlavaMistralConfig
 
     def __init__(self, config: MistralConfig):
@@ -56,6 +58,9 @@ class LlavaMistralForCausalLM(MistralForCausalLM, LlavaMetaForCausalLM):
 
     def get_model(self):
         return self.model
+    
+    def get_lm_head(self):
+        return self.lm_head
 
     def forward(
         self,

@@ -32,7 +32,7 @@ def eval_model(args):
     disable_torch_init()
 
     model_name = get_model_name_from_path(args.model_path)
-    tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, args.model_base, model_name, True)
+    tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, model_name, args.model_base, True)
 
 
 
@@ -97,11 +97,7 @@ def eval_model(args):
                 use_cache=True,
                 stopping_criteria=[stopping_criteria])
         
-        input_token_len = input_ids.shape[1]
-        n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
-        if n_diff_input_output > 0:
-            print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
-        outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
+        outputs = outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
         outputs = outputs.strip()
         if outputs.endswith(stop_str):
             outputs = outputs[:-len(stop_str)]

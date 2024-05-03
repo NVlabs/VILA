@@ -9,6 +9,7 @@ import sqlite3
 import sys
 import uuid
 import warnings
+import tempfile
 from functools import partial
 from typing import Any, BinaryIO, Dict, Optional, TypeVar, Union
 from urllib.parse import quote, urlparse
@@ -92,7 +93,8 @@ def compute_num_samples(fname):
 def splitname(fname):
     """Returns the basename and extension of a filename"""
     assert "." in fname, "Filename must have an extension"
-    basename, extension = re.match(r"^((?:.*/)?.*?)(\..*)$", fname).groups()
+    # basename, extension = re.match(r"^((?:.*/)?.*?)(\..*)$", fname).groups()
+    basename, extension = os.path.splitext(fname)
     return basename, extension
 
 
@@ -192,6 +194,14 @@ def default_decoder(sample: Dict[str, Any], format: Optional[Union[bool, str]] =
             import pickle
 
             sample[key] = pickle.load(stream)
+        elif extension == "mp4":
+            # Write stream to a temporary file
+            # with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmpfile:
+            #     tmpfile.write(stream.read())
+            #     tmpfile_path = tmpfile.name
+
+            # sample[key] = tmpfile_path
+            sample[key] = io.BytesIO(stream.read())
     return sample
 
 
@@ -270,7 +280,11 @@ class IndexedTarSamples:
 
     def __getitem__(self, idx):
         # Get indexes of files for the sample at index idx
-        indexes = self.samples[idx]
+        try:
+            indexes = self.samples[idx]
+        except IndexError as e:
+            print(f"[wids-debug] curr idx: {idx}, total sample length: {len(self.samples)} {e}")
+            raise e
         sample = {}
         key = None
         for i in indexes:
