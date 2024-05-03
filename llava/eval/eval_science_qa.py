@@ -66,6 +66,9 @@ if __name__ == "__main__":
 
         if pred_text in args.options:
             answer = pred_text
+        elif len(pred_text) >= 2 and pred_text[0] in args.options and pred_text[1:2] == ".":
+            # kentang-mit@: update this because some llama3 output has this format.
+            answer = pred_text[0]
         elif len(pred_text) >= 3 and pred_text[0] in args.options and pred_text[1:3] == ". ":
             answer = pred_text[0]
         else:

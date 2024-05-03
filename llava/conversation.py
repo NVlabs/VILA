@@ -29,6 +29,7 @@ class SeparatorStyle(Enum):
     PLAIN = auto()
     LLAMA_2 = auto()
     MISTRAL = auto()
+    LLAMA_3 = auto()
 
 
 @dataclasses.dataclass
@@ -77,6 +78,15 @@ class Conversation:
                     ret += role + ": " + message + seps[i % 2]
                 else:
                     ret += role + ":"
+        elif self.sep_style == SeparatorStyle.LLAMA_3:
+            ret = self.system + self.sep
+            for role, message in messages:
+                if message:
+                    if type(message) is tuple:
+                        message = message[0]
+                    ret += role + message + self.sep
+                else:
+                    ret += role
         elif self.sep_style == SeparatorStyle.MPT:
             ret = self.system + self.sep
             for role, message in messages:
@@ -409,9 +419,38 @@ conv_llava_v1_mmtag = Conversation(
     version="v1_mmtag",
 )
 
+hermes_2 = Conversation(
+    system='<|im_start|>system\nAnswer the questions.',
+    roles=('<|im_start|>user\n', '<|im_start|>assistant\n'),
+    sep_style=SeparatorStyle.MPT,
+    sep='<|im_end|>',
+    messages=(
+    ),
+    offset=0,
+    version="hermes-2"
+)
+
+
+# Template added by Yukang. Note (kentang-mit@): sep is <|eot_id|> for official template.
+llama_3_chat = Conversation(
+    system="<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful language and vision assistant. "
+           "You are able to understand the visual content that the user provides, "
+           "and assist the user with a variety of tasks using natural language.",
+    roles=("<|start_header_id|>user<|end_header_id|>\n\n",
+           "<|start_header_id|>system<|end_header_id|>\n\n"),
+    version="llama_v3",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_3,
+    sep="<|end_of_text|>",
+)
+
+
 default_conversation = conv_vicuna_v1
 conv_templates = {
     "default": conv_vicuna_v0,
+    "hermes-2": hermes_2,
+    "llama_3": llama_3_chat,
     "v0": conv_vicuna_v0,
     "v1": conv_vicuna_v1,
     "vicuna_v1": conv_vicuna_v1,

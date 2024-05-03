@@ -17,29 +17,26 @@
 
 
 import os
-import torch
-
-from torch.utils.data import ConcatDataset, DistributedSampler, RandomSampler, Sampler
-
-from transformers import Trainer
-from transformers.trainer import (
-    is_sagemaker_mp_enabled,
-    get_parameter_names,
-    has_length,
-    ALL_LAYERNORM_LAYERS,
-    # ShardedDDPOption,
-    logger,
-)
 from typing import List, Optional
 
+import torch
+from torch.utils.data import (ConcatDataset, Dataset, DistributedSampler,
+                              RandomSampler, Sampler)
+from transformers import PreTrainedModel, Trainer
+from transformers.modeling_utils import unwrap_model
+from transformers.trainer import ALL_LAYERNORM_LAYERS  # ShardedDDPOption,
+from transformers.trainer import (get_parameter_names, has_length,
+                                  is_sagemaker_mp_enabled, logger)
+from collections import OrderedDict
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
     from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
+
     if hasattr(param, "ds_id"):
         if param.ds_status == ZeroParamStatus.NOT_AVAILABLE:
             if not ignore_status:
-                print(name, 'no ignore status')
+                print(name, "no ignore status")
         with zero.GatheredParameters([param]):
             param = param.data.detach().cpu().clone()
     else:
@@ -85,7 +82,9 @@ def get_modality_length_grouped_indices(lengths, batch_size, world_size, generat
     lang_indices, lang_lengths = zip(*[(i, -l) for i, l in enumerate(lengths) if l < 0])
 
     mm_shuffle = [mm_indices[i] for i in get_length_grouped_indices(mm_lengths, batch_size, world_size, generator=None)]
-    lang_shuffle = [lang_indices[i] for i in get_length_grouped_indices(lang_lengths, batch_size, world_size, generator=None)]
+    lang_shuffle = [
+        lang_indices[i] for i in get_length_grouped_indices(lang_lengths, batch_size, world_size, generator=None)
+    ]
     megabatch_size = world_size * batch_size
     mm_megabatches = [mm_shuffle[i : i + megabatch_size] for i in range(0, len(mm_shuffle), megabatch_size)]
     lang_megabatches = [lang_shuffle[i : i + megabatch_size] for i in range(0, len(lang_shuffle), megabatch_size)]
@@ -116,37 +115,42 @@ def get_length_grouped_indices(lengths, batch_size, world_size, generator=None, 
 
 class VILADistributedSampler(DistributedSampler):
     """This class is implemented by Jason Lu."""
-    def __init__(self, dataset, num_replicas: Optional[int] = None,
-                 rank: Optional[int] = None, shuffle: bool = True,
-                 seed: int = 0, drop_last: bool = False,
-                 batch_size=None,
-                 # NOTE: this is the total size but not per-worker
-                 sample_len_list = None,
-                 force_accumulation=True,
-                 ) -> None:
+
+    def __init__(
+        self,
+        dataset,
+        num_replicas: Optional[int] = None,
+        rank: Optional[int] = None,
+        shuffle: bool = True,
+        seed: int = 0,
+        drop_last: bool = False,
+        batch_size=None,
+        # NOTE: this is the total size but not per-worker
+        sample_len_list=None,
+        force_accumulation=True,
+    ) -> None:
         import math
+
         import torch.distributed as dist
 
         if num_replicas is None:
             if not dist.is_available():
-                raise RuntimeError(
-                    "Requires distributed package to be available")
+                raise RuntimeError("Requires distributed package to be available")
             num_replicas = dist.get_world_size()
         if rank is None:
             if not dist.is_available():
-                raise RuntimeError(
-                    "Requires distributed package to be available")
+                raise RuntimeError("Requires distributed package to be available")
             rank = dist.get_rank()
         if rank >= num_replicas or rank < 0:
             raise ValueError(
-                "Invalid rank {}, rank should be in the interval"
-                " [0, {}]".format(rank, num_replicas - 1))
+                "Invalid rank {}, rank should be in the interval" " [0, {}]".format(rank, num_replicas - 1)
+            )
         self.dataset = dataset
         self.num_replicas = num_replicas
         self.rank = rank
         self.epoch = 0
         self.drop_last = True  # always True
-        
+
         # NOTE: org_ is without drop last
         self.org_sample_len_list = self.per_replica_samples = sample_len_list
         assert sum(sample_len_list) == len(self.dataset)
@@ -156,16 +160,15 @@ class VILADistributedSampler(DistributedSampler):
 
         if self.drop_last:  # type: ignore[arg-type]
             self.per_replica_samples = [
-                sample_len // (self.num_replicas * batch_size) * batch_size
-                for sample_len in self.per_replica_samples
+                sample_len // (self.num_replicas * batch_size) * batch_size for sample_len in self.per_replica_samples
             ]
             self.num_samples = sum(self.per_replica_samples)
         else:
             raise NotImplementedError
-    
+
         self.total_size = self.num_samples * self.num_replicas
         self.total_samples = [samples * self.num_replicas for samples in self.per_replica_samples]
-        
+
         self.shuffle = shuffle
         self.seed = seed
 
@@ -174,34 +177,38 @@ class VILADistributedSampler(DistributedSampler):
 
     def __iter__(self):
         import random
+
         indices = list(range(len(self.dataset)))
 
         indices_list = []
         for i in range(len(self.org_sample_len_list)):
-            indices_list.append(indices[
-                sum(self.org_sample_len_list[:i]): sum(self.org_sample_len_list[:i]) + self.total_samples[i]
-                ])
-            
+            indices_list.append(
+                indices[sum(self.org_sample_len_list[:i]) : sum(self.org_sample_len_list[:i]) + self.total_samples[i]]
+            )
+
         # 1. split the full indices first (note: without drop last at this moment)
         indices_list = []
         for i in range(len(self.org_sample_len_list)):
-            indices_list.append(indices[
-                sum(self.org_sample_len_list[:i]): sum(self.org_sample_len_list[:i]) + self.total_samples[i]
-                ])
+            indices_list.append(
+                indices[sum(self.org_sample_len_list[:i]) : sum(self.org_sample_len_list[:i]) + self.total_samples[i]]
+            )
 
-        assert sum([len(indices) for indices in indices_list]) == self.total_size, \
-            (sum([len(indices) for indices in indices_list]), self.total_size)
+        assert sum([len(indices) for indices in indices_list]) == self.total_size, (
+            sum([len(indices) for indices in indices_list]),
+            self.total_size,
+        )
 
         # let's first do subsample
         for idx, indices in enumerate(indices_list):
-            indices_list[idx] = indices[self.rank *
-                            self.per_replica_samples[idx]:(self.rank + 1) * self.per_replica_samples[idx]]
+            indices_list[idx] = indices[
+                self.rank * self.per_replica_samples[idx] : (self.rank + 1) * self.per_replica_samples[idx]
+            ]
 
         random.seed(self.seed + self.epoch)
         for indice in range(len(indices_list)):
             random.shuffle(indices_list[indice])
 
-        indices_list = sorted(indices_list, key=lambda x:-len(x))
+        indices_list = sorted(indices_list, key=lambda x: -len(x))
         all_indices = [-1] * self.num_samples
         indices_available = list(range(self.num_samples))
         for indice in indices_list:
@@ -214,7 +221,7 @@ class VILADistributedSampler(DistributedSampler):
             for i, idx in enumerate(mapped_indices):
                 all_indices[idx] = indice[i]
         assert -1 not in all_indices
-        
+
         return iter(all_indices)
 
 
@@ -246,18 +253,21 @@ class LengthGroupedSampler(Sampler):
 
     def __iter__(self):
         if self.group_by_modality:
-            indices = get_modality_length_grouped_indices(self.lengths, self.batch_size, self.world_size, generator=self.generator)
+            indices = get_modality_length_grouped_indices(
+                self.lengths, self.batch_size, self.world_size, generator=self.generator
+            )
         else:
-            indices = get_length_grouped_indices(self.lengths, self.batch_size, self.world_size, generator=self.generator)
+            indices = get_length_grouped_indices(
+                self.lengths, self.batch_size, self.world_size, generator=self.generator
+            )
         return iter(indices)
 
 
 class LLaVATrainer(Trainer):
-
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None
-        
+
         # Always using Jason's sampler.
         sample_len_list = self.args.sample_lens
         seed = self.args.data_seed if self.args.data_seed is not None else self.args.seed
@@ -265,7 +275,8 @@ class LLaVATrainer(Trainer):
             self.train_dataset,
             num_replicas=self.args.world_size,
             rank=self.args.process_index,
-            seed=seed, batch_size=self.args.train_batch_size,
+            seed=seed,
+            batch_size=self.args.train_batch_size,
             sample_len_list=sample_len_list,
         )
 
@@ -284,6 +295,22 @@ class LLaVATrainer(Trainer):
             )
         else:
             return super()._get_train_sampler()
+
+    def _get_eval_sampler(self, eval_dataset: Dataset) -> Optional[torch.utils.data.Sampler]:
+        if self.eval_dataset is None or not has_length(self.eval_dataset):
+            return None
+
+        # Always using Jason's sampler.
+        sample_len_list = self.args.eval_sample_lens
+        seed = self.args.data_seed if self.args.data_seed is not None else self.args.seed
+        return VILADistributedSampler(
+            eval_dataset,
+            num_replicas=self.args.world_size,
+            rank=self.args.process_index,
+            seed=seed,
+            batch_size=self.args.eval_batch_size,
+            sample_len_list=sample_len_list,
+        )
 
     def create_optimizer(self):
         """
@@ -307,26 +334,34 @@ class LLaVATrainer(Trainer):
                 optimizer_grouped_parameters = [
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n not in projector_parameters and p.requires_grad)
                         ],
                         "weight_decay": self.args.weight_decay,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n not in projector_parameters and p.requires_grad)
                         ],
                         "weight_decay": 0.0,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n in projector_parameters and p.requires_grad)
                         ],
                         "weight_decay": self.args.weight_decay,
                         "lr": self.args.mm_projector_lr,
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
                         ],
                         "weight_decay": 0.0,
                         "lr": self.args.mm_projector_lr,
@@ -342,7 +377,9 @@ class LLaVATrainer(Trainer):
                     },
                     {
                         "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and p.requires_grad)
                         ],
                         "weight_decay": 0.0,
                     },
@@ -350,7 +387,7 @@ class LLaVATrainer(Trainer):
 
             optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
-            if 0: # self.sharded_ddp == ShardedDDPOption.SIMPLE:
+            if 0:  # self.sharded_ddp == ShardedDDPOption.SIMPLE:
                 self.optimizer = OSS(
                     params=optimizer_grouped_parameters,
                     optim=optimizer_cls,
@@ -374,29 +411,14 @@ class LLaVATrainer(Trainer):
 
         return self.optimizer
 
-    def _save_checkpoint(self, model, trial, metrics=None):
-        if getattr(self.args, 'tune_mm_mlp_adapter', False):
-            from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
-            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
 
-            run_dir = self._get_output_dir(trial=trial)
-            output_dir = os.path.join(run_dir, checkpoint_folder)
-
-            # Only save Adapter
-            keys_to_match = ['mm_projector', 'vision_resampler']
-            if getattr(self.args, "use_im_start_end", False):
-                keys_to_match.extend(['embed_tokens', 'embed_in'])
-
-            weight_to_save = get_mm_adapter_state_maybe_zero_3(self.model.named_parameters(), keys_to_match)
-
-            if self.args.local_rank == 0 or self.args.local_rank == -1:
-                self.model.config.save_pretrained(output_dir)
-                torch.save(weight_to_save, os.path.join(output_dir, f'mm_projector.bin'))
+    def save_model(self, output_dir: Optional[str], _internal_call: bool):
+        ## save tuned model separately
+        if self.is_deepspeed_enabled:
+            state_dict = self.accelerator.get_state_dict(self.deepspeed)
         else:
-            super(LLaVATrainer, self)._save_checkpoint(model, trial, metrics)
+            # TODO(ligeng): fix save_model for multi-node training on large models (e.g., Llama-70b)
+            state_dict = self.model.state_dict()
 
-    def _save(self, output_dir: Optional[str] = None, state_dict=None):
-        if getattr(self.args, 'tune_mm_mlp_adapter', False):
-            pass
-        else:
-            super(LLaVATrainer, self)._save(output_dir, state_dict)
+        if self.args.should_save:
+            return self.model.save_pretrained(output_dir, state_dict=state_dict)

@@ -1,4 +1,18 @@
-# This file is originated from: https://github.com/haotian-liu/LLaVA/
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import os
 import argparse
@@ -10,7 +24,6 @@ from llava.eval.m4c_evaluator import EvalAIAnswerProcessor
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', type=str, default="./playground/data/eval/vqav2")
-    parser.add_argument('--ckpt', type=str, required=True)
     parser.add_argument('--split', type=str, required=True)
     return parser.parse_args()
 
@@ -19,9 +32,9 @@ if __name__ == '__main__':
 
     args = parse_args()
 
-    src = os.path.join(args.dir, 'answers', args.split, args.ckpt, 'merge.jsonl')
+    src = os.path.join(args.dir, args.split, 'answers', 'merge.jsonl')
     test_split = os.path.join(args.dir, 'llava_vqav2_mscoco_test2015.jsonl')
-    dst = os.path.join(args.dir, 'answers_upload', args.split, f'{args.ckpt}.json')
+    dst = os.path.join(args.dir, args.split, f'{args.split}_answers_upload.json')
     os.makedirs(os.path.dirname(dst), exist_ok=True)
 
     results = []
