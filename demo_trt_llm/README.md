@@ -25,11 +25,11 @@ pip install git+https://github.com/huggingface/transformers@v4.36.2
 ```
 ## Build TensorRT engine of VILA model
 
-### For Vila 1.0:
+### For VILA 1.0:
 
 Please refer to the [documentation from TRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/tree/main/examples/multimodal#llava-and-vila) to deploy the model.
 
-### For Vila 1.5:
+### For VILA 1.5:
 
 1. Setup
 ```bash
