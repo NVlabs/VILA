@@ -275,13 +275,14 @@ class KeywordsStoppingCriteria(StoppingCriteria):
             elif keyword_id.ndim == 2:
                 if (output_ids[0, -keyword_id.shape[0] :] == keyword_id).all():
                     return True
+            elif keyword_id.ndim ==1:
+                pass
             else:
                 raise ValueError(
-                    "Keyword tensor should have 2 or 3 dimensions, got {}".format(
+                    "Keyword tensor should have < 4 dimensions, got {}".format(
                         keyword_id.ndim
                     )
                 )
-                return True
         outputs = self.tokenizer.batch_decode(
             output_ids[:, -offset:], skip_special_tokens=True
         )[0]
