@@ -600,13 +600,37 @@ class LlamaFlashAttention2(LlamaAttention):
         )
 
 
+def is_at_least_ampere():
+    if torch.cuda.is_available():
+        num_of_gpus = torch.cuda.device_count()
+
+        # Loop over each GPU
+        for i in range(num_of_gpus):
+            gpu_properties = torch.cuda.get_device_properties(i)
+
+            # Compute capability is major.minor version format
+            # Convert it to a float for comparison
+            compute_capability = float(f"{gpu_properties.major}.{gpu_properties.minor}")
+
+            # If compute capability is less than 8.0 (Ampere or newer), return False
+            if compute_capability < 8.0:
+                return False
+
+        # If all GPUs are Ampere or newer, return True
+        return True
+    else:
+        # If CUDA is not available, return False
+        return False
+
 class LlamaDecoderLayer(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
         self.hidden_size = config.hidden_size
+        ampere_or_newer = is_at_least_ampere()
         self.self_attn = (
-            #LlamaAttention(config=config)
-            LlamaFlashAttention2(config=config)
+            LlamaFlashAttention2(config=config) if ampere_or_newer else LlamaAttention(config=config)
+            # LlamaAttention(config=config)
+            # LlamaFlashAttention2(config=config)
         )
         self.mlp = LlamaMLP(config)
         self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
