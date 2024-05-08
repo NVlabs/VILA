@@ -213,7 +213,7 @@ Llama-3-VILA1.5-8B inference:
 ```bash
 python -W ignore llava/eval/run_vila.py \
     --model-path Efficient-Large-Model/Llama-3-VILA1.5-8b \
-    --conv-mode vicuna_v1 \
+    --conv-mode llama_3 \
     --query "<image>\n Please describe the traffic condition." \
     --image-file "av.png"
 ```
