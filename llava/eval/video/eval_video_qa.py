@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument("--output_dir", default=r'', help="The path to save annotation json files.")
     parser.add_argument("--output_json", default=r'', help="The path to save annotation final combined json file.")
     parser.add_argument("--num_tasks", default=1, type=int, help="Number of splits.")
-    parser.add_argument("--gpt_model", default="gpt-4-0125-preview", help="The path to save annotation final combined json file.")
+    parser.add_argument("--gpt_model", default="gpt-3.5-turbo", help="The path to save annotation final combined json file.")
     args = parser.parse_args()
     return args
 
