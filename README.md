@@ -218,6 +218,15 @@ python -W ignore llava/eval/run_vila.py \
     --image-file "av.png"
 ```
 
+VILA1.5-40B inference:
+```bash
+python -W ignore llava/eval/run_vila.py \
+    --model-path Efficient-Large-Model/VILA1.5-40b \
+    --conv-mode hermes-2 \
+    --query "<image>\n Please describe the traffic condition." \
+    --image-file "av.png"
+```
+
 VILA1.5-3B video inference:
 ```bash
 python -W ignore llava/eval/run_vila.py \
