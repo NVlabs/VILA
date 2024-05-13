@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vila"
+version = "1.0.0"
+description = "VILA: On Pre-training for Visual Language Models"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+    "torch==2.0.1", "torchvision==0.15.2",
+    "transformers==4.36.2", "tokenizers>=0.15.2", "sentencepiece==0.1.99", "shortuuid",
+    "accelerate==0.27.2", "peft==0.5.0", "bitsandbytes==0.41.0",
+    "pydantic<2,>=1", "markdown2[all]", "numpy", "scikit-learn==1.2.2",
+    "gradio==3.35.2", "gradio_client==0.2.9",
+    "requests", "httpx==0.24.0", "uvicorn", "fastapi",
+    "einops==0.6.1", "einops-exts==0.0.4", "timm==0.9.12",
+    "openpyxl==3.1.2", "pytorchvideo==0.1.5", "decord==0.6.0",
+    "datasets==2.16.1", "openai==1.8.0", "webdataset==0.2.86",
+    "nltk==3.3", "pywsd==1.2.4", "opencv-python==4.8.0.74",
+    "s2wrapper@git+https://github.com/bfshi/scaling_on_scales",
+]
+
+[project.optional-dependencies]
+train = ["deepspeed==0.9.5", "ninja", "wandb"]
+eval = ["mmengine", "word2number", "Levenshtein", "nltk", "pywsd"]
+
+[project.urls]
+"Homepage" = "https://hanlab.mit.edu/projects/vila"
+"Bug Tracker" = "https://github.com/Efficient-Large-Model/VILA/issues"
+
+[tool.setuptools.packages.find]
+exclude = ["assets*", "benchmark*", "docs", "dist*", "playground*", "scripts*", "tests*"]
+
+[tool.wheel]
+exclude = ["assets*", "benchmark*", "docs", "dist*", "playground*", "scripts*", "tests*"]
