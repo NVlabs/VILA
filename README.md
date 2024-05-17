@@ -110,7 +110,7 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 or follow the instructions below in order.
 
 ```
-conda create -n vila python=3.10 -y
+conda create -n vila python=3.10 -y # make sure you install python 3.10
 conda activate vila
 
 pip install --upgrade pip  # enable PEP 660 support
