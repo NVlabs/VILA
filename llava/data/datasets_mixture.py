@@ -36,7 +36,7 @@ def register_datasets_mixtures():
 
     # Align
     llava_1_5_mm_align = Dataset(
-        dataset_name='llava_1_5_align',
+        dataset_name='llava_1_5_mm_align',
         dataset_type='torch',
         data_path='./playground/data/LLaVA-Pretrain/LLaVA-CC3M-Pretrain-595K.json',
         image_path='./playground/data/LLaVA-Pretrain/images'
