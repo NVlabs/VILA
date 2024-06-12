@@ -21,7 +21,7 @@ torchrun --nnodes=$n_node --nproc_per_node=8 --master_port=25001 \
     --master_addr $MASTER_ADDR --node_rank=$CURRENT_RANK \
     llava/train/train_mem.py \
     --deepspeed ./scripts/zero3.json \
-    --model_name_or_path $BASE_MODEL_PATH \
+    --model_name_or_path $STAGE2_PATH \
     --version hermes-2 \
     --data_mixture sharegpt4v_gpt4_100k+llava_instruct+sharegpt4v_sft+dvqa_train_200k+chartqa_train_18k+ai2d_train_12k+docvqa_train_10k+geoqa+synthdog_en+vflan+shot2story_shotonly+video_chatgpt+youcook2+vatex+sharegpt_video+scienceqa+wit_subset+math+sherlock \
     --vision_tower OpenGVLab/InternViT-6B-448px-V1-2 \
