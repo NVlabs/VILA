@@ -57,11 +57,11 @@ if is_torch_available():
 if is_torchvision_available():
     from torchvision.ops.boxes import batched_nms
 
-if is_tf_available():
-    import tensorflow as tf
-    from tensorflow.experimental import numpy as tnp
+# if is_tf_available():
+#     import tensorflow as tf
+#     from tensorflow.experimental import numpy as tnp
 
-    from ...tf_utils import flatten, shape_list
+#     from ...tf_utils import flatten, shape_list
 
 logger = logging.get_logger(__name__)
 
