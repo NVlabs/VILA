@@ -796,7 +796,10 @@ class LazySupervisedDataset(Dataset):
 
             if "video" in sources[0]:
                 question = sources[0]["conversations"][0]["value"].rstrip()
-                answer = sources[0]["conversations"][1]["value"].rstrip()
+                if isinstance(sources[0]["conversations"][1]["value"], str):
+                    answer = sources[0]["conversations"][1]["value"].rstrip()
+                else:
+                    answer = str(sources[0]["conversations"][1]["value"]).rstrip()
             else:
                 question = sources[0]["q"]
                 answer = sources[0]["a"]

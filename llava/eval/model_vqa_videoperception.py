@@ -6,12 +6,13 @@ import os
 import json
 from tqdm import tqdm
 
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
+from llava.constants import IMAGE_TOKEN_INDEX
 from llava import conversation as conversation_lib
+from llava.conversation import SeparatorStyle, conv_templates
 from llava.model.builder import load_pretrained_model
 from llava.data.dataset import LazySupervisedDataset
 from llava.utils import disable_torch_init
-from llava.mm_utils import tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+from llava.mm_utils import tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria, is_gemma_tokenizer
 from llava.data import preprocess
 from llava.mm_utils import process_images
 
@@ -37,49 +38,75 @@ def get_chunk(lst, n, k):
     return chunks[k]
 
 
-def get_model_option(model, image_processor, tokenizer, video_path, qs, options, args):
+def get_model_output(model, image_processor, tokenizer, video_path, qs, options, args):
 
     conversation_lib.default_conversation = conversation_lib.conv_templates[
         args.conv_mode
     ]
-    num_video_frames = model.config.num_video_frames
-    images, video_loading_succeed = LazySupervisedDataset._load_video(video_path, num_video_frames, args)
-    image_tensor = process_images(images, image_processor, model.config)
+    if hasattr(model.config, 'num_video_frames') and model.config.num_video_frames is not None:
+        num_video_frames = model.config.num_video_frames 
+    else:
+        num_video_frames = 8
 
-    qs = '<image>\n' * num_video_frames + qs
-    loss_list = []
-    for id, option in enumerate(options):
+    if hasattr(model.config, 'fps') and model.config.fps is not None:
+        fps = model.config.fps
+    else:
+        fps = 0.0
 
-        conversation = [
-            {"from": "human", "value": qs},
-            {"from": "gpt", "value": option},
-        ]
+    # print(fps)
+    images, frames_loaded = LazySupervisedDataset._load_video(video_path, num_video_frames, fps, args)
+    images = process_images(images, image_processor, model.config)
 
-        sources = [conversation]
+    num_frames_loaded_successfully = len(images)
+    # print(f"Number of frames loaded successfully: {num_frames_loaded_successfully}")
 
-        data_dict = preprocess(
-            sources,
-            tokenizer,
-            has_image=True,
+    qs = qs.replace("<image>\n", "").replace("\n<image>", "").replace("<image>", "")
+    qs = qs.replace("<video>\n", "").replace("\n<video>", "").replace("<video>", "")
+    qs = "Watching the video and answer with the option's letter from the given choices directly." + qs
+    qs = '<image>\n' * num_frames_loaded_successfully + qs
+    
+    for i, option in enumerate(options):
+        qs = qs + chr(ord("A") + i) + ". " + option + "\n"
+
+    conv = conv_templates[args.conv_mode].copy()
+    conv.append_message(conv.roles[0], qs)
+    conv.append_message(conv.roles[1], None)
+    prompt = conv.get_prompt()
+
+    input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
+
+    stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+    keywords = [stop_str]
+    stopping_criteria = (
+        [KeywordsStoppingCriteria(keywords, tokenizer, input_ids)]
+        if conv.version == "v0" or is_gemma_tokenizer(tokenizer)
+        else None
+    )
+
+    with torch.inference_mode():
+        output_ids = model.generate(
+            input_ids,
+            images=images.half().cuda(),
+            do_sample=True if args.temperature > 0 else False,
+            temperature=args.temperature,
+            max_new_tokens=1024,
+            use_cache=True,
+            stopping_criteria=stopping_criteria,
         )
-        input_ids = data_dict["input_ids"]
-        targets = data_dict["labels"]
-        # Remove last ending token
-        targets[0][-1] = IGNORE_INDEX
 
-        with torch.inference_mode():
-            outputs = model(
-                input_ids=input_ids.cuda(),
-                labels=targets.cuda(),
-                images=image_tensor.half().cuda(),
-                attention_mask=input_ids.cuda().ne(tokenizer.pad_token_id),
-            )
-            loss = outputs.loss.item()
-            loss_list.append(loss)
+    output_text = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
+    output_text = output_text.strip()
+    if output_text.endswith(stop_str):
+        output_text = output_text[: -len(stop_str)]
+    output_text = output_text.strip()
+    print(output_text)
 
-    # Get index of the minimum loss
-    min_loss_index = loss_list.index(min(loss_list))
-    return min_loss_index
+    if len(output_text) >= 1:
+        pred_text = output_text[0]
+    else:
+        pred_text = ""
+
+    return pred_text
 
 
 def eval_model(args):
@@ -91,10 +118,7 @@ def eval_model(args):
     gt_questions_list = []
     for key in gt_questions.keys():
         gt_questions_list.append(gt_questions[key])
-    
     gt_questions = get_chunk(gt_questions_list, args.num_chunks, args.chunk_idx)
-    # gt_answers = json.load(open(os.path.expanduser(args.gt_file_answers), "r"))
-    # gt_answers = get_chunk(gt_answers, args.num_chunks, args.chunk_idx)
 
     args.output_dir = os.path.expanduser(args.output_dir)
     print(f"Output directory: {args.output_dir}")
@@ -119,15 +143,11 @@ def eval_model(args):
     args.image_processor = image_processor
 
     # Iterate over each sample in the ground truth file
-    # index = 0
     for sample in tqdm(gt_questions):
         video_name = sample["metadata"]['video_id']
         questions = sample["mc_question"]
-        # Check if the video is in the cache
-
 
         for question_dict in questions:
-            # total += 1
             question = question_dict['question']
             options = question_dict['options']
             question_id = question_dict['id']
@@ -136,17 +156,13 @@ def eval_model(args):
             if f"{video_name}_{question_id}" in cache_set:
                 print(f"Skipping {video_name}_{question_id} because it is in the cache")
                 continue
-            min_loss_index = get_model_option(model, image_processor, tokenizer, os.path.join(args.video_dir, f"{video_name}.mp4"), question, options, args)
-            # if min_loss_index == answer_id:
-            #     correct += 1
-
-            # Write into cache
+            response = get_model_output(model, image_processor, tokenizer, os.path.join(args.video_dir, f"{video_name}.mp4"), question, options, args)
             sample_set = {
                 'video_name_question_id': f"{video_name}_{question_id}", 
                 'question': question, 
                 'answer_id': answer_id,
-                'prediction': min_loss_index,
-                'correct': min_loss_index == answer_id,
+                'prediction': response,
+                'correct': response == chr(ord("A") + answer_id),
             }
             with open(answers_file, 'a') as f:
                 f.write(json.dumps(sample_set) + "\n")
@@ -160,7 +176,6 @@ if __name__ == "__main__":
     parser.add_argument("--model_max_length", type=int, required=False, default=2048)
     parser.add_argument('--video_dir', help='Directory containing video files.', required=True)
     parser.add_argument('--gt_file', help='Path to the ground truth file containing question.', required=True)
-    # parser.add_argument('--gt_file_answers', help='Path to the ground truth file containing answers.', required=True)
     parser.add_argument('--output_dir', help='Directory to save the model results JSON.', required=True)
     parser.add_argument('--output_name', help='Name of the file for storing results JSON.', required=True)
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
