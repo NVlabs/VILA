@@ -1,0 +1,12 @@
+# Ignore Python cache directories and files
+__pycache__/
+*.pyc
+
+# Ignore specific files after installation 
+*.whl
+*.egg-info/
+dependency_links.txt
+PKG-INFO
+requires.txt
+SOURCES.txt
+top_level.txt
