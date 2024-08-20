@@ -1,13 +1,14 @@
 """
 This module provides utilities for managing files in a directory.
 
-It includes a function `keep_most_recent_files` that keeps the most recent 
-files in a directory, deleting the rest based on the maximum size of the directory 
+It includes a function `keep_most_recent_files` that keeps the most recent
+files in a directory, deleting the rest based on the maximum size of the directory
 in bytes and the maximum number of files to keep.
 
 The cleanup job can be run in the background using `create_cleanup_background_process`.
 """
 
+import errno
 import fcntl
 import glob
 import os
@@ -73,9 +74,7 @@ class ExclusiveLock:
         os.unlink(self.lockfile)
 
 
-def create_cleanup_background_process(
-    pattern, maxsize=int(1e12), maxfiles=1000, every=60
-):
+def create_cleanup_background_process(pattern, maxsize=int(1e12), maxfiles=1000, every=60):
     """Create a background process that keeps a directory below a certain size."""
 
     def cleanup_worker(every):

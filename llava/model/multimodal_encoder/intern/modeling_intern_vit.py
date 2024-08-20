@@ -11,20 +11,18 @@ import torch.utils.checkpoint
 from einops import rearrange
 from torch import nn
 from transformers.activations import ACT2FN
-from transformers.modeling_outputs import (BaseModelOutput,
-                                           BaseModelOutputWithPooling)
+from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 
 from llava.model.multimodal_encoder.intern.configuration_intern_vit import InternVisionConfig
 
 from .flash_attention import FlashAttention
+
 has_flash_attn = True
 
 
 logger = logging.get_logger(__name__)
-
-
 
 
 """ DropBlock, DropPath
@@ -65,7 +63,7 @@ def ndgrid(*tensors) -> Tuple[torch.Tensor, ...]:
 
     """
     try:
-        return torch.meshgrid(*tensors, indexing='ij')
+        return torch.meshgrid(*tensors, indexing="ij")
     except TypeError:
         # old PyTorch < 1.10 will follow this path as it does not have indexing arg,
         # the old behaviour of meshgrid was 'ij'
@@ -73,15 +71,15 @@ def ndgrid(*tensors) -> Tuple[torch.Tensor, ...]:
 
 
 def drop_block_2d(
-        x,
-        drop_prob: float = 0.1,
-        block_size: int = 7,
-        gamma_scale: float = 1.0,
-        with_noise: bool = False,
-        inplace: bool = False,
-        batchwise: bool = False
+    x,
+    drop_prob: float = 0.1,
+    block_size: int = 7,
+    gamma_scale: float = 1.0,
+    with_noise: bool = False,
+    inplace: bool = False,
+    batchwise: bool = False,
 ):
-    """ DropBlock. See https://arxiv.org/pdf/1810.12890.pdf
+    """DropBlock. See https://arxiv.org/pdf/1810.12890.pdf
 
     DropBlock with an experimental gaussian noise option. This layer has been tested on a few training
     runs with success, but needs further validation and possibly optimization for lower runtime impact.
@@ -90,13 +88,15 @@ def drop_block_2d(
     total_size = W * H
     clipped_block_size = min(block_size, min(W, H))
     # seed_drop_rate, the gamma parameter
-    gamma = gamma_scale * drop_prob * total_size / clipped_block_size ** 2 / (
-            (W - block_size + 1) * (H - block_size + 1))
+    gamma = (
+        gamma_scale * drop_prob * total_size / clipped_block_size**2 / ((W - block_size + 1) * (H - block_size + 1))
+    )
 
     # Forces the block to be inside the feature map.
     w_i, h_i = ndgrid(torch.arange(W, device=x.device), torch.arange(H, device=x.device))
-    valid_block = ((w_i >= clipped_block_size // 2) & (w_i < W - (clipped_block_size - 1) // 2)) & \
-                  ((h_i >= clipped_block_size // 2) & (h_i < H - (clipped_block_size - 1) // 2))
+    valid_block = ((w_i >= clipped_block_size // 2) & (w_i < W - (clipped_block_size - 1) // 2)) & (
+        (h_i >= clipped_block_size // 2) & (h_i < H - (clipped_block_size - 1) // 2)
+    )
     valid_block = torch.reshape(valid_block, (1, 1, H, W)).to(dtype=x.dtype)
 
     if batchwise:
@@ -106,10 +106,8 @@ def drop_block_2d(
         uniform_noise = torch.rand_like(x)
     block_mask = ((2 - gamma - valid_block + uniform_noise) >= 1).to(dtype=x.dtype)
     block_mask = -F.max_pool2d(
-        -block_mask,
-        kernel_size=clipped_block_size,  # block_size,
-        stride=1,
-        padding=clipped_block_size // 2)
+        -block_mask, kernel_size=clipped_block_size, stride=1, padding=clipped_block_size // 2  # block_size,
+    )
 
     if with_noise:
         normal_noise = torch.randn((1, C, H, W), dtype=x.dtype, device=x.device) if batchwise else torch.randn_like(x)
@@ -127,14 +125,14 @@ def drop_block_2d(
 
 
 def drop_block_fast_2d(
-        x: torch.Tensor,
-        drop_prob: float = 0.1,
-        block_size: int = 7,
-        gamma_scale: float = 1.0,
-        with_noise: bool = False,
-        inplace: bool = False,
+    x: torch.Tensor,
+    drop_prob: float = 0.1,
+    block_size: int = 7,
+    gamma_scale: float = 1.0,
+    with_noise: bool = False,
+    inplace: bool = False,
 ):
-    """ DropBlock. See https://arxiv.org/pdf/1810.12890.pdf
+    """DropBlock. See https://arxiv.org/pdf/1810.12890.pdf
 
     DropBlock with an experimental gaussian noise option. Simplied from above without concern for valid
     block mask at edges.
@@ -142,19 +140,21 @@ def drop_block_fast_2d(
     B, C, H, W = x.shape
     total_size = W * H
     clipped_block_size = min(block_size, min(W, H))
-    gamma = gamma_scale * drop_prob * total_size / clipped_block_size ** 2 / (
-            (W - block_size + 1) * (H - block_size + 1))
+    gamma = (
+        gamma_scale * drop_prob * total_size / clipped_block_size**2 / ((W - block_size + 1) * (H - block_size + 1))
+    )
 
     block_mask = torch.empty_like(x).bernoulli_(gamma)
     block_mask = F.max_pool2d(
-        block_mask.to(x.dtype), kernel_size=clipped_block_size, stride=1, padding=clipped_block_size // 2)
+        block_mask.to(x.dtype), kernel_size=clipped_block_size, stride=1, padding=clipped_block_size // 2
+    )
 
     if with_noise:
         normal_noise = torch.empty_like(x).normal_()
         if inplace:
-            x.mul_(1. - block_mask).add_(normal_noise * block_mask)
+            x.mul_(1.0 - block_mask).add_(normal_noise * block_mask)
         else:
-            x = x * (1. - block_mask) + normal_noise * block_mask
+            x = x * (1.0 - block_mask) + normal_noise * block_mask
     else:
         block_mask = 1 - block_mask
         normalize_scale = (block_mask.numel() / block_mask.to(dtype=torch.float32).sum().add(1e-6)).to(dtype=x.dtype)
@@ -166,19 +166,19 @@ def drop_block_fast_2d(
 
 
 class DropBlock2d(nn.Module):
-    """ DropBlock. See https://arxiv.org/pdf/1810.12890.pdf
-    """
+    """DropBlock. See https://arxiv.org/pdf/1810.12890.pdf"""
 
     def __init__(
-            self,
-            drop_prob: float = 0.1,
-            block_size: int = 7,
-            gamma_scale: float = 1.0,
-            with_noise: bool = False,
-            inplace: bool = False,
-            batchwise: bool = False,
-            fast: bool = True):
-        super(DropBlock2d, self).__init__()
+        self,
+        drop_prob: float = 0.1,
+        block_size: int = 7,
+        gamma_scale: float = 1.0,
+        with_noise: bool = False,
+        inplace: bool = False,
+        batchwise: bool = False,
+        fast: bool = True,
+    ):
+        super().__init__()
         self.drop_prob = drop_prob
         self.gamma_scale = gamma_scale
         self.block_size = block_size
@@ -192,13 +192,15 @@ class DropBlock2d(nn.Module):
             return x
         if self.fast:
             return drop_block_fast_2d(
-                x, self.drop_prob, self.block_size, self.gamma_scale, self.with_noise, self.inplace)
+                x, self.drop_prob, self.block_size, self.gamma_scale, self.with_noise, self.inplace
+            )
         else:
             return drop_block_2d(
-                x, self.drop_prob, self.block_size, self.gamma_scale, self.with_noise, self.inplace, self.batchwise)
+                x, self.drop_prob, self.block_size, self.gamma_scale, self.with_noise, self.inplace, self.batchwise
+            )
 
 
-def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
+def drop_path(x, drop_prob: float = 0.0, training: bool = False, scale_by_keep: bool = True):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
 
     This is the same as the DropConnect impl I created for EfficientNet, etc networks, however,
@@ -208,7 +210,7 @@ def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: b
     'survival rate' as the argument.
 
     """
-    if drop_prob == 0. or not training:
+    if drop_prob == 0.0 or not training:
         return x
     keep_prob = 1 - drop_prob
     shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
@@ -219,10 +221,10 @@ def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: b
 
 
 class DropPath(nn.Module):
-    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
-    """
-    def __init__(self, drop_prob: float = 0., scale_by_keep: bool = True):
-        super(DropPath, self).__init__()
+    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks)."""
+
+    def __init__(self, drop_prob: float = 0.0, scale_by_keep: bool = True):
+        super().__init__()
         self.drop_prob = drop_prob
         self.scale_by_keep = scale_by_keep
 
@@ -230,8 +232,7 @@ class DropPath(nn.Module):
         return drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
 
     def extra_repr(self):
-        return f'drop_prob={round(self.drop_prob,3):0.3f}'
-    
+        return f"drop_prob={round(self.drop_prob,3):0.3f}"
 
 
 class InternRMSNorm(nn.Module):
@@ -253,12 +254,12 @@ try:
 
     InternRMSNorm = FusedRMSNorm  # noqa
 
-    logger.info('Discovered apex.normalization.FusedRMSNorm - will use it instead of InternRMSNorm')
+    logger.info("Discovered apex.normalization.FusedRMSNorm - will use it instead of InternRMSNorm")
 except ImportError:
     # using the normal InternRMSNorm
     pass
 except Exception:
-    logger.warning('discovered apex but it failed to load, falling back to InternRMSNorm')
+    logger.warning("discovered apex but it failed to load, falling back to InternRMSNorm")
     pass
 
 
@@ -304,15 +305,15 @@ class InternAttention(nn.Module):
         self.num_heads = config.num_attention_heads
         self.use_flash_attn = config.use_flash_attn and has_flash_attn
         if config.use_flash_attn and not has_flash_attn:
-            print('Warning: Flash Attention is not available, use_flash_attn is set to False.')
+            print("Warning: Flash Attention is not available, use_flash_attn is set to False.")
         self.head_dim = self.embed_dim // self.num_heads
         if self.head_dim * self.num_heads != self.embed_dim:
             raise ValueError(
-                f'embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`:'
-                f' {self.num_heads}).'
+                f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`:"
+                f" {self.num_heads})."
             )
 
-        self.scale = self.head_dim ** -0.5
+        self.scale = self.head_dim**-0.5
         self.qkv = nn.Linear(self.embed_dim, 3 * self.embed_dim, bias=config.qkv_bias)
         self.attn_drop = nn.Dropout(config.attention_dropout)
         self.proj_drop = nn.Dropout(config.dropout)
@@ -337,7 +338,7 @@ class InternAttention(nn.Module):
             q = self.q_norm(q.transpose(1, 2).flatten(-2, -1)).view(B_, N_, H_, D_).transpose(1, 2)
             k = self.k_norm(k.transpose(1, 2).flatten(-2, -1)).view(B_, N_, H_, D_).transpose(1, 2)
 
-        attn = ((q * self.scale) @ k.transpose(-2, -1))
+        attn = (q * self.scale) @ k.transpose(-2, -1)
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -348,7 +349,7 @@ class InternAttention(nn.Module):
 
     def _flash_attn(self, x, key_padding_mask=None, need_weights=False):
         qkv = self.qkv(x)
-        qkv = rearrange(qkv, 'b s (three h d) -> b s three h d', three=3, h=self.num_heads)
+        qkv = rearrange(qkv, "b s (three h d) -> b s three h d", three=3, h=self.num_heads)
 
         if self.qk_normalization:
             q, k, v = qkv.unbind(2)
@@ -356,10 +357,8 @@ class InternAttention(nn.Module):
             k = self.k_norm(k.flatten(-2, -1)).view(k.shape)
             qkv = torch.stack([q, k, v], dim=2)
 
-        context, _ = self.inner_attn(
-            qkv, key_padding_mask=key_padding_mask, need_weights=need_weights, causal=False
-        )
-        outs = self.proj(rearrange(context, 'b s h d -> b s (h d)'))
+        context, _ = self.inner_attn(qkv, key_padding_mask=key_padding_mask, need_weights=need_weights, causal=False)
+        outs = self.proj(rearrange(context, "b s h d -> b s (h d)"))
         outs = self.proj_drop(outs)
         return outs
 
@@ -396,12 +395,12 @@ class InternVisionEncoderLayer(nn.Module):
 
         self.ls1 = nn.Parameter(config.initializer_factor * torch.ones(self.embed_dim))
         self.ls2 = nn.Parameter(config.initializer_factor * torch.ones(self.embed_dim))
-        self.drop_path1 = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
-        self.drop_path2 = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
+        self.drop_path1 = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
+        self.drop_path2 = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
 
     def forward(
-            self,
-            hidden_states: torch.Tensor,
+        self,
+        hidden_states: torch.Tensor,
     ) -> Tuple[torch.FloatTensor, Optional[torch.FloatTensor], Optional[Tuple[torch.FloatTensor]]]:
         """
         Args:
@@ -429,15 +428,16 @@ class InternVisionEncoder(nn.Module):
         self.config = config
         # stochastic depth decay rule
         dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, config.num_hidden_layers)]
-        self.layers = nn.ModuleList([
-            InternVisionEncoderLayer(config, dpr[idx]) for idx in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList(
+            [InternVisionEncoderLayer(config, dpr[idx]) for idx in range(config.num_hidden_layers)]
+        )
         self.gradient_checkpointing = True
 
     def forward(
-            self,
-            inputs_embeds,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
+        self,
+        inputs_embeds,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         r"""
         Args:
@@ -461,9 +461,7 @@ class InternVisionEncoder(nn.Module):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
             if self.gradient_checkpointing and self.training:
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    encoder_layer,
-                    hidden_states)
+                layer_outputs = torch.utils.checkpoint.checkpoint(encoder_layer, hidden_states)
             else:
                 layer_outputs = encoder_layer(
                     hidden_states,
@@ -475,15 +473,13 @@ class InternVisionEncoder(nn.Module):
 
         if not return_dict:
             return tuple(v for v in [hidden_states, encoder_states] if v is not None)
-        return BaseModelOutput(
-            last_hidden_state=hidden_states, hidden_states=encoder_states
-        )
+        return BaseModelOutput(last_hidden_state=hidden_states, hidden_states=encoder_states)
 
 
 class InternVisionModel(PreTrainedModel):
-    main_input_name = 'pixel_values'
+    main_input_name = "pixel_values"
     config_class = InternVisionConfig
-    _no_split_modules = ['InternVisionEncoderLayer']
+    _no_split_modules = ["InternVisionEncoderLayer"]
 
     def __init__(self, config: InternVisionConfig):
         super().__init__(config)
@@ -497,21 +493,21 @@ class InternVisionModel(PreTrainedModel):
         _, num_positions, embed_dim = pos_emb.shape
         cls_emb = pos_emb[:, :1, :]
         pos_emb = pos_emb[:, 1:, :].reshape(1, old_size // patch_size, old_size // patch_size, -1).permute(0, 3, 1, 2)
-        pos_emb = F.interpolate(pos_emb.float(), size=new_size // patch_size, mode='bicubic', align_corners=False)
+        pos_emb = F.interpolate(pos_emb.float(), size=new_size // patch_size, mode="bicubic", align_corners=False)
         pos_emb = pos_emb.to(cls_emb.dtype).reshape(1, embed_dim, -1).permute(0, 2, 1)
         pos_emb = torch.cat([cls_emb, pos_emb], dim=1)
         self.embeddings.position_embedding = nn.Parameter(pos_emb)
-        logger.info('Resized position embeddings from {} to {}'.format(old_size, new_size))
+        logger.info(f"Resized position embeddings from {old_size} to {new_size}")
 
     def get_input_embeddings(self):
         return self.embeddings
 
     def forward(
-            self,
-            pixel_values: Optional[torch.FloatTensor] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-            pixel_embeds: Optional[torch.FloatTensor] = None,
+        self,
+        pixel_values: Optional[torch.FloatTensor] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        pixel_embeds: Optional[torch.FloatTensor] = None,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -519,7 +515,7 @@ class InternVisionModel(PreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if pixel_values is None and pixel_embeds is None:
-            raise ValueError('You have to specify pixel_values or pixel_embeds')
+            raise ValueError("You have to specify pixel_values or pixel_embeds")
 
         if pixel_embeds is not None:
             hidden_states = pixel_embeds
@@ -527,7 +523,7 @@ class InternVisionModel(PreTrainedModel):
             if len(pixel_values.shape) == 4:
                 hidden_states = self.embeddings(pixel_values)
             else:
-                raise ValueError(f'wrong pixel_values size: {pixel_values.shape}')
+                raise ValueError(f"wrong pixel_values size: {pixel_values.shape}")
         encoder_outputs = self.encoder(
             inputs_embeds=hidden_states,
             output_hidden_states=output_hidden_states,

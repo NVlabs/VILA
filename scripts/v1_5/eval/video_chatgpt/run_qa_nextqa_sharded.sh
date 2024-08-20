@@ -10,7 +10,7 @@ GPT_Zero_Shot_QA="/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/video_
 NEXTQA="/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/video_datasets_v2/nextqa"
 video_dir="${NEXTQA}/NExTVideo"
 gt_file="${NEXTQA}/test_data_nextoe/test.csv"
-output_dir="./eval_output/${CKPT_NAME}/NextQA_Zero_Shot_QA"
+output_dir="runs/eval/${CKPT_NAME}/NextQA_Zero_Shot_QA"
 
 
 gpu_list="${CUDA_VISIBLE_DEVICES:-0}"

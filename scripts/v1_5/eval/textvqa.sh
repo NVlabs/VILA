@@ -6,14 +6,21 @@ if [ "$#" -ge 3 ]; then
     CONV_MODE="$3"
 fi
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.model_vqa_loader \
+DATA_PATH="playground/data/eval/textvqa/llava_textvqa_val_v051_ocr.jsonl"
+IMAGE_DIR="playground/data/eval/textvqa/train_images"
+ANNOTATION_PATH="playground/data/eval/textvqa/TextVQA_0.5.1_val.json"
+OUTPUT_PATH="runs/eval/$CKPT/textvqa/outputs.jsonl"
+GENERATION_CONFIG='{"max_new_tokens": 128}'
+
+torchrun --nproc-per-node=8 \
+    llava/eval/model_vqa_loader.py \
     --model-path $MODEL_PATH \
-    --question-file ./playground/data/eval/textvqa/llava_textvqa_val_v051_ocr.jsonl \
-    --image-folder ./playground/data/eval/textvqa/train_images \
-    --answers-file ./eval_output/$CKPT/textvqa/answers.jsonl \
-    --temperature 0 \
+    --generation-config "$GENERATION_CONFIG" \
+    --question-file $DATA_PATH \
+    --image-folder $IMAGE_DIR \
+    --answers-file $OUTPUT_PATH \
     --conv-mode $CONV_MODE
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.eval_textvqa \
-    --annotation-file ./playground/data/eval/textvqa/TextVQA_0.5.1_val.json \
-    --result-file ./eval_output/$CKPT/textvqa/answers.jsonl
+python llava/eval/eval_textvqa.py \
+    --annotation-file $ANNOTATION_PATH \
+    --result-file $OUTPUT_PATH

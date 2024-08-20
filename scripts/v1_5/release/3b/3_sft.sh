@@ -9,8 +9,8 @@ n_node=${SLURM_JOB_NUM_NODES:-1}
 echo "MASTER_ADDR="$MASTER_ADDR
 echo "JobID: $SLURM_JOB_ID | Full list: $worker_list"
 
-n_nodes=1
-bs=16
+n_node=$SLURM_JOB_NUM_NODES
+bs=$((64 / n_node))
 # OUTPUT of stage 2 script
 STAGE2_PATH=$1
 # Final output checkpoint path

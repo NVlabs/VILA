@@ -21,7 +21,7 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --model-path $MODEL_PATH \
         --question-file ./playground/data/eval/mm-vet/llava-mm-vet.jsonl \
         --image-folder ./playground/data/eval/mm-vet/images \
-        --answers-file ./eval_output/$CKPT/mm-vet/${CHUNKS}_${IDX}.jsonl \
+        --answers-file runs/eval/$CKPT/mm-vet/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --temperature 0 \
@@ -30,20 +30,20 @@ done
 
 wait
 
-output_file=./eval_output/$CKPT/mm-vet/answers.json
+output_file=runs/eval/$CKPT/mm-vet/answers.json
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/mm-vet/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/mm-vet/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
 mkdir -p ./playground/data/eval/mm-vet/results
 
 python scripts/convert_mmvet_for_eval.py \
-    --src ./eval_output/$CKPT/mm-vet/answers.json \
-    --dst ./eval_output/$CKPT/mm-vet/results.json
+    --src runs/eval/$CKPT/mm-vet/answers.json \
+    --dst runs/eval/$CKPT/mm-vet/results.json
 
-python llava/eval/eval_mmvet.py --results_file ./eval_output/$CKPT/mm-vet/results.json
+python llava/eval/eval_mmvet.py --results_file runs/eval/$CKPT/mm-vet/results.json

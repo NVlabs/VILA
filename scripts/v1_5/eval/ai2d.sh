@@ -6,11 +6,21 @@ if [ "$#" -ge 3 ]; then
     CONV_MODE="$3"
 fi
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.evaluate_vqa \
-    --model-path $MODEL_PATH \
-    --image-folder ./playground/data/eval/ai2d \
-    --dataset ai2diagram_test \
-    --conv-mode $CONV_MODE \
-    --answers-file ./eval_output/$CKPT/ai2d/answers/merge.jsonl
+DATA_PATH="playground/data/eval/ai2d/test.jsonl"
+IMAGE_DIR="playground/data/eval/ai2d"
+OUTPUT_PATH="runs/eval/$CKPT/ai2d/outputs.jsonl"
+GENERATION_CONFIG='{"max_new_tokens": 10}'
 
-python -m llava.eval.evaluate_vqa_score --answers-file ./eval_output/$CKPT/ai2d/answers/merge.jsonl  --dataset ai2diagram_test
+torchrun --nproc-per-node=8 \
+    llava/eval/evaluate_vqa.py \
+    --model-path $MODEL_PATH \
+    --conv-mode $CONV_MODE \
+    --generation-config "$GENERATION_CONFIG" \
+    --dataset ai2diagram_test \
+    --data-path $DATA_PATH \
+    --image-folder $IMAGE_DIR \
+    --answers-file $OUTPUT_PATH
+
+python llava/eval/evaluate_vqa_score.py \
+    --answers-file $OUTPUT_PATH \
+    --metric accuracy

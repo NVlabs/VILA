@@ -14,9 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import json
 import argparse
+import json
 
 
 def get_args():
@@ -31,23 +30,24 @@ def eval_single(result_file, eval_only_type=None):
     results = {}
     for line in open(result_file):
         row = json.loads(line)
-        results[row['question_id']] = row
+        results[row["question_id"]] = row
 
     type_counts = {}
     correct_counts = {}
-    for question_data in data['questions']:
-        if eval_only_type is not None and question_data['data_type'] != eval_only_type: continue
-        data_type = question_data['question_type_id']
+    for question_data in data["questions"]:
+        if eval_only_type is not None and question_data["data_type"] != eval_only_type:
+            continue
+        data_type = question_data["question_type_id"]
         type_counts[data_type] = type_counts.get(data_type, 0) + 1
         try:
-            question_id = int(question_data['question_id'])
-        except:
-            question_id = question_data['question_id']
+            question_id = int(question_data["question_id"])
+        except BaseException:
+            question_id = question_data["question_id"]
         if question_id not in results:
             correct_counts[data_type] = correct_counts.get(data_type, 0)
             continue
         row = results[question_id]
-        if row['text'] == question_data['answer']:
+        if row["text"] == question_data["answer"]:
             correct_counts[data_type] = correct_counts.get(data_type, 0) + 1
 
     total_count = 0
@@ -68,23 +68,21 @@ def eval_single(result_file, eval_only_type=None):
 
     return results
 
+
 if __name__ == "__main__":
     args = get_args()
     data = json.load(open(args.annotation_file))
-    ques_type_id_to_name = {id:n for n,id in data['question_type'].items()}
+    ques_type_id_to_name = {id: n for n, id in data["question_type"].items()}
 
     results = eval_single(args.result_file)
-    eval_single(args.result_file, eval_only_type='image')
-    eval_single(args.result_file, eval_only_type='video')
+    eval_single(args.result_file, eval_only_type="image")
+    eval_single(args.result_file, eval_only_type="video")
 
-    with open(args.result_upload_file, 'w') as fp:
-        for question in data['questions']:
-            qid = question['question_id']
+    with open(args.result_upload_file, "w") as fp:
+        for question in data["questions"]:
+            qid = question["question_id"]
             if qid in results:
                 result = results[qid]
             else:
                 result = results[int(qid)]
-            fp.write(json.dumps({
-                'question_id': qid,
-                'prediction': result['text']
-            }) + '\n')
+            fp.write(json.dumps({"question_id": qid, "prediction": result["text"]}) + "\n")

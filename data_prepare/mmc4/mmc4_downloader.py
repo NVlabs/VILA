@@ -1,18 +1,32 @@
-import aiohttp
-import aiofiles
-import asyncio
-from tqdm import tqdm
-import ssl
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
+import asyncio
+import base64
 import json
 import os
-
-import shutil
-
-from io import BytesIO
-import sys
-import base64
 import pickle
+import shutil
+import ssl
+import sys
+from io import BytesIO
+
+import aiofiles
+import aiohttp
+from tqdm import tqdm
 
 input_dir = "/dataset/mmc4-test/jsonl"  # path to the MMC4 annotations
 output_dir = "/dataset/mmc4-test/pkl"
@@ -23,13 +37,13 @@ jsonl_list = sorted(os.listdir(input_dir))
 
 if len(sys.argv) > 1:  # optional: shard the workload distributedly
     start_idx = int(sys.argv[1])
-    end_idx = int(sys.argv[2]) 
-    jsonl_list = jsonl_list[start_idx: end_idx]
+    end_idx = int(sys.argv[2])
+    jsonl_list = jsonl_list[start_idx:end_idx]
 
 all_data = []
 for fname in tqdm(jsonl_list):
     full_path = os.path.join(input_dir, fname)
-    with open(full_path, 'r') as json_file:
+    with open(full_path) as json_file:
         json_list = list(json_file)
     data_list = [json.loads(json_str) for json_str in json_list]
     for i_d, d in enumerate(data_list):  # register shard info
@@ -40,7 +54,8 @@ for fname in tqdm(jsonl_list):
 
 semaphore = asyncio.Semaphore(512)  # limit number of simultaneous downloads
 
-progress = tqdm(total=len(all_data), desc='Download progress')  # Initialize progress bar
+progress = tqdm(total=len(all_data), desc="Download progress")  # Initialize progress bar
+
 
 async def download_file(session, data, output_dict):
     async with semaphore:  # limit the number of simultaneous downloads
@@ -57,7 +72,7 @@ async def download_file(session, data, output_dict):
                     if resp.status == 200:
                         f_name = f"{i_image:03d}." + image_info["raw_url"].split(".")[-1]
                         f_name = os.path.join(base, f_name)
-                        f = await aiofiles.open(f_name, mode='wb')
+                        f = await aiofiles.open(f_name, mode="wb")
                         await f.write(await resp.read())
                         await f.close()
                         downloaded.append(f_name)
@@ -74,6 +89,7 @@ async def download_file(session, data, output_dict):
             success = True
             try:
                 from PIL import Image
+
                 for fname in downloaded:
                     img = Image.open(fname).convert("RGB")
                     size_limit = 336  # reduce the resolution to save disk space
@@ -86,30 +102,31 @@ async def download_file(session, data, output_dict):
                             new_w = size_limit
                             new_h = int(size_limit * h / w)
                         img = img.resize((new_w, new_h))
-                    
+
                     buffered = BytesIO()
                     img.save(buffered, format="JPEG")
                     img_b64_str = base64.b64encode(buffered.getvalue()).decode()
-                    
-                    if data['shard'] not in output_dict:
-                        output_dict[data['shard']] = {}
-                    if data['shard_idx'] not in output_dict[data['shard']]:
-                        output_dict[data['shard']][data['shard_idx']] = {}
-                    output_dict[data['shard']][data['shard_idx']][fname.split("/")[-1]] = img_b64_str
-                    
+
+                    if data["shard"] not in output_dict:
+                        output_dict[data["shard"]] = {}
+                    if data["shard_idx"] not in output_dict[data["shard"]]:
+                        output_dict[data["shard"]][data["shard_idx"]] = {}
+                    output_dict[data["shard"]][data["shard_idx"]][fname.split("/")[-1]] = img_b64_str
+
             except Exception as e:
                 print(e)
                 success = False
                 shutil.rmtree(base)
 
             if not success:
-                if data['shard'] in output_dict and data['shard_idx'] in output_dict[data['shard']]:
-                    output_dict[data['shard']].pop(data['shard_idx'])
-                
+                if data["shard"] in output_dict and data["shard_idx"] in output_dict[data["shard"]]:
+                    output_dict[data["shard"]].pop(data["shard_idx"])
+
         if os.path.exists(base):
             shutil.rmtree(base)
-        
+
         progress.update(1)
+
 
 async def main(data_list):
     ssl_context = ssl.create_default_context()
@@ -131,5 +148,6 @@ async def main(data_list):
     for k, v in output_dict.items():  # TODO: @ligeng, please change to tar format?
         with open(os.path.join(output_dir, k + ".pkl"), "wb") as f:
             pickle.dump(v, f)
+
 
 asyncio.run(main(all_data))

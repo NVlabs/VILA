@@ -22,7 +22,6 @@ from ...utils import (
     is_torch_available,
 )
 
-
 _import_structure = {
     "configuration_gemma": ["GEMMA_PRETRAINED_CONFIG_ARCHIVE_MAP", "GemmaConfig"],
 }
@@ -95,12 +94,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         pass
     else:
-        from .modeling_gemma import (
-            GemmaForCausalLM,
-            GemmaForSequenceClassification,
-            GemmaModel,
-            GemmaPreTrainedModel,
-        )
+        from .modeling_gemma import GemmaForCausalLM, GemmaForSequenceClassification, GemmaModel, GemmaPreTrainedModel
 
     try:
         if not is_flax_available():
@@ -108,11 +102,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         pass
     else:
-        from .modeling_flax_gemma import (
-            FlaxGemmaForCausalLM,
-            FlaxGemmaModel,
-            FlaxGemmaPreTrainedModel,
-        )
+        from .modeling_flax_gemma import FlaxGemmaForCausalLM, FlaxGemmaModel, FlaxGemmaPreTrainedModel
 
 
 else:

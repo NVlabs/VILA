@@ -18,27 +18,27 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
 
     CUDA_VISIBLE_DEVICES=${GPULIST[$GPU_IDX1]},${GPULIST[$GPU_IDX2]} python -m llava.eval.model_vqa_loader \
         --model-path $MODEL_PATH \
+        --generation-config '{"max_new_tokens": 128}' \
         --question-file ./playground/data/eval/vizwiz/llava_test.jsonl \
         --image-folder ./playground/data/eval/vizwiz/test \
-        --answers-file ./eval_output/$CKPT/vizwiz/answers/${CHUNKS}_${IDX}.jsonl \
+        --answers-file runs/eval/$CKPT/vizwiz/answers/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
-        --temperature 0 \
         --conv-mode $CONV_MODE &
 done
 wait
 
-output_file=./eval_output/$CKPT/vizwiz/answers/$CKPT.jsonl
+output_file=runs/eval/$CKPT/vizwiz/answers/$CKPT.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/vizwiz/answers/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/vizwiz/answers/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
 python scripts/convert_vizwiz_for_submission.py \
     --annotation-file ./playground/data/eval/vizwiz/llava_test.jsonl \
-    --result-file ./eval_output/$CKPT/vizwiz/answers/$CKPT.jsonl \
-    --result-upload-file ./eval_output/$CKPT/vizwiz/answers_upload/$CKPT.json
+    --result-file runs/eval/$CKPT/vizwiz/answers/$CKPT.jsonl \
+    --result-upload-file runs/eval/$CKPT/vizwiz/answers_upload/$CKPT.json

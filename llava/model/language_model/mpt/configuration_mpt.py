@@ -1,13 +1,73 @@
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """A HuggingFace-style model configuration."""
 from typing import Dict, Optional, Union
+
 from transformers import PretrainedConfig
-attn_config_defaults: Dict = {'attn_type': 'multihead_attention', 'attn_pdrop': 0.0, 'attn_impl': 'triton', 'qk_ln': False, 'clip_qkv': None, 'softmax_scale': None, 'prefix_lm': False, 'attn_uses_sequence_id': False, 'alibi': False, 'alibi_bias_max': 8}
-init_config_defaults: Dict = {'name': 'kaiming_normal_', 'fan_mode': 'fan_in', 'init_nonlinearity': 'relu', 'init_div_is_residual': True, 'emb_init_std': None, 'emb_init_uniform_lim': None, 'init_std': None, 'init_gain': 0.0}
+
+attn_config_defaults: Dict = {
+    "attn_type": "multihead_attention",
+    "attn_pdrop": 0.0,
+    "attn_impl": "triton",
+    "qk_ln": False,
+    "clip_qkv": None,
+    "softmax_scale": None,
+    "prefix_lm": False,
+    "attn_uses_sequence_id": False,
+    "alibi": False,
+    "alibi_bias_max": 8,
+}
+init_config_defaults: Dict = {
+    "name": "kaiming_normal_",
+    "fan_mode": "fan_in",
+    "init_nonlinearity": "relu",
+    "init_div_is_residual": True,
+    "emb_init_std": None,
+    "emb_init_uniform_lim": None,
+    "init_std": None,
+    "init_gain": 0.0,
+}
+
 
 class MPTConfig(PretrainedConfig):
-    model_type = 'mpt'
+    model_type = "mpt"
 
-    def __init__(self, d_model: int=2048, n_heads: int=16, n_layers: int=24, expansion_ratio: int=4, max_seq_len: int=2048, vocab_size: int=50368, resid_pdrop: float=0.0, emb_pdrop: float=0.0, learned_pos_emb: bool=True, attn_config: Dict=attn_config_defaults, init_device: str='cpu', logit_scale: Optional[Union[float, str]]=None, no_bias: bool=False, verbose: int=0, embedding_fraction: float=1.0, norm_type: str='low_precision_layernorm', use_cache: bool=False, init_config: Dict=init_config_defaults, **kwargs):
+    def __init__(
+        self,
+        d_model: int = 2048,
+        n_heads: int = 16,
+        n_layers: int = 24,
+        expansion_ratio: int = 4,
+        max_seq_len: int = 2048,
+        vocab_size: int = 50368,
+        resid_pdrop: float = 0.0,
+        emb_pdrop: float = 0.0,
+        learned_pos_emb: bool = True,
+        attn_config: Dict = attn_config_defaults,
+        init_device: str = "cpu",
+        logit_scale: Optional[Union[float, str]] = None,
+        no_bias: bool = False,
+        verbose: int = 0,
+        embedding_fraction: float = 1.0,
+        norm_type: str = "low_precision_layernorm",
+        use_cache: bool = False,
+        init_config: Dict = init_config_defaults,
+        **kwargs,
+    ):
         """The MPT configuration class.
 
         Args:
@@ -80,10 +140,10 @@ class MPTConfig(PretrainedConfig):
         self.norm_type = norm_type
         self.use_cache = use_cache
         self.init_config = init_config
-        if 'name' in kwargs:
-            del kwargs['name']
-        if 'loss_fn' in kwargs:
-            del kwargs['loss_fn']
+        if "name" in kwargs:
+            del kwargs["name"]
+        if "loss_fn" in kwargs:
+            del kwargs["loss_fn"]
         super().__init__(**kwargs)
         self._validate_config()
 
@@ -97,22 +157,28 @@ class MPTConfig(PretrainedConfig):
         self.attn_config = self._set_config_defaults(self.attn_config, attn_config_defaults)
         self.init_config = self._set_config_defaults(self.init_config, init_config_defaults)
         if self.d_model % self.n_heads != 0:
-            raise ValueError('d_model must be divisible by n_heads')
-        if any((prob < 0 or prob > 1 for prob in [self.attn_config['attn_pdrop'], self.resid_pdrop, self.emb_pdrop])):
-            raise ValueError("self.attn_config['attn_pdrop'], resid_pdrop, emb_pdrop are probabilities and must be between 0 and 1")
-        if self.attn_config['attn_impl'] not in ['torch', 'flash', 'triton']:
+            raise ValueError("d_model must be divisible by n_heads")
+        if any(prob < 0 or prob > 1 for prob in [self.attn_config["attn_pdrop"], self.resid_pdrop, self.emb_pdrop]):
+            raise ValueError(
+                "self.attn_config['attn_pdrop'], resid_pdrop, emb_pdrop are probabilities and must be between 0 and 1"
+            )
+        if self.attn_config["attn_impl"] not in ["torch", "flash", "triton"]:
             raise ValueError(f"Unknown attn_impl={self.attn_config['attn_impl']}")
-        if self.attn_config['prefix_lm'] and self.attn_config['attn_impl'] not in ['torch', 'triton']:
-            raise NotImplementedError('prefix_lm only implemented with torch and triton attention.')
-        if self.attn_config['alibi'] and self.attn_config['attn_impl'] not in ['torch', 'triton']:
-            raise NotImplementedError('alibi only implemented with torch and triton attention.')
-        if self.attn_config['attn_uses_sequence_id'] and self.attn_config['attn_impl'] not in ['torch', 'triton']:
-            raise NotImplementedError('attn_uses_sequence_id only implemented with torch and triton attention.')
+        if self.attn_config["prefix_lm"] and self.attn_config["attn_impl"] not in ["torch", "triton"]:
+            raise NotImplementedError("prefix_lm only implemented with torch and triton attention.")
+        if self.attn_config["alibi"] and self.attn_config["attn_impl"] not in ["torch", "triton"]:
+            raise NotImplementedError("alibi only implemented with torch and triton attention.")
+        if self.attn_config["attn_uses_sequence_id"] and self.attn_config["attn_impl"] not in ["torch", "triton"]:
+            raise NotImplementedError("attn_uses_sequence_id only implemented with torch and triton attention.")
         if self.embedding_fraction > 1 or self.embedding_fraction <= 0:
-            raise ValueError('model.embedding_fraction must be between 0 (exclusive) and 1 (inclusive)!')
-        if isinstance(self.logit_scale, str) and self.logit_scale != 'inv_sqrt_d_model':
-            raise ValueError(f"self.logit_scale={self.logit_scale!r} is not recognized as an option; use numeric value or 'inv_sqrt_d_model'.")
-        if self.init_config.get('name', None) is None:
+            raise ValueError("model.embedding_fraction must be between 0 (exclusive) and 1 (inclusive)!")
+        if isinstance(self.logit_scale, str) and self.logit_scale != "inv_sqrt_d_model":
+            raise ValueError(
+                f"self.logit_scale={self.logit_scale!r} is not recognized as an option; use numeric value or 'inv_sqrt_d_model'."
+            )
+        if self.init_config.get("name", None) is None:
             raise ValueError(f"self.init_config={self.init_config!r} 'name' needs to be set.")
-        if not self.learned_pos_emb and (not self.attn_config['alibi']):
-            raise ValueError(f'Positional information must be provided to the model using either learned_pos_emb or alibi.')
+        if not self.learned_pos_emb and (not self.attn_config["alibi"]):
+            raise ValueError(
+                f"Positional information must be provided to the model using either learned_pos_emb or alibi."
+            )

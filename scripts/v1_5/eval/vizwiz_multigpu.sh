@@ -16,12 +16,12 @@ fi
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python -m llava.eval.model_vqa_loader \
         --model-path $MODEL_PATH \
+        --generation-config '{"max_new_tokens": 128}' \
         --question-file ./playground/data/eval/vizwiz/llava_test.jsonl \
         --image-folder ./playground/data/eval/vizwiz/test \
         --answers-file ./playground/data/eval/vizwiz/answers/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
-        --temperature 0 \
         --conv-mode $CONV_MODE &
 done
 wait

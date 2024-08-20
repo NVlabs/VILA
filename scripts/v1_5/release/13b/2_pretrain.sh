@@ -23,7 +23,7 @@ export NCCL_ASYNC_ERROR_HANDLING=1
 
 
 n_node=$SLURM_JOB_NUM_NODES
-bs=$((128 / n_node))
+bs=$((64 / n_node))
 echo "number of nodes:" $n_node
 echo "per device batch size:" $bs
 echo "node rank:" $SLURM_PROCID

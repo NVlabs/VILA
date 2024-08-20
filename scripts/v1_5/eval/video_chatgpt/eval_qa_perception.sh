@@ -1,5 +1,5 @@
 #!/bin/bash
-GPT_Zero_Shot_QA="./eval_output"
+GPT_Zero_Shot_QA="runs/eval"
 output_name=$1
 pred_path="${GPT_Zero_Shot_QA}/${output_name}/PerceptionTest_Zero_Shot_QA/merge.jsonl"
 output_json="${GPT_Zero_Shot_QA}/${output_name}/PerceptionTest_Zero_Shot_QA/results.json"

@@ -100,7 +100,7 @@ def get_multi_choice_info(options):
 
 
 def load_yaml(file_path):
-    with open(file_path, "r") as stream:
+    with open(file_path) as stream:
         try:
             yaml_dict = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
@@ -195,7 +195,7 @@ def construct_prompt(sample, config):
         else:
             res_dict["final_input_prompt"] = empty_prompt
 
-        res_dict["gt_content"] = options[ord(sample["answer"].upper()) - ord("A")]
+        res_dict["gt_content"] = sample["answer"]
     else:
         empty_prompt_sample_structure = config["short_ans_example_format"]
         empty_prompt = empty_prompt_sample_structure.format(question)

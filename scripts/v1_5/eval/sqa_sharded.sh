@@ -17,7 +17,6 @@
 #         --answers-file ./playground/data/eval/scienceqa/answers/${CHUNKS}_${IDX}.jsonl \
 #         --num-chunks $CHUNKS \
 #         --chunk-idx $IDX \
-#         --temperature 0 \
 #         --conv-mode vicuna_v1 &
 # done
 # wait
@@ -61,28 +60,27 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --model-path $MODEL_PATH \
         --question-file ./playground/data/eval/scienceqa/llava_test_CQM-A.json \
         --image-folder ./playground/data/eval/scienceqa/images/test \
-        --answers-file ./eval_output/$CKPT/scienceqa/${CHUNKS}_${IDX}.jsonl \
+        --answers-file runs/eval/$CKPT/scienceqa/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --single-pred-prompt \
-        --temperature 0 \
         --conv-mode $CONV_MODE &
 done
 
 wait
 
-output_file=./eval_output/$CKPT/scienceqa/answers.jsonl
+output_file=runs/eval/$CKPT/scienceqa/answers.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/scienceqa/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/scienceqa/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
 python llava/eval/eval_science_qa.py \
     --base-dir ./playground/data/eval/scienceqa \
-    --result-file ./eval_output/$CKPT/scienceqa/answers.jsonl \
-    --output-file ./eval_output/$CKPT/scienceqa/outputs.jsonl \
-    --output-result ./eval_output/$CKPT/scienceqa/results.json
+    --result-file runs/eval/$CKPT/scienceqa/answers.jsonl \
+    --output-file runs/eval/$CKPT/scienceqa/outputs.jsonl \
+    --output-result runs/eval/$CKPT/scienceqa/results.json

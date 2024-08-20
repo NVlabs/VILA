@@ -10,7 +10,7 @@ GPT_Zero_Shot_QA="/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/video_
 video_dir="${GPT_Zero_Shot_QA}/TGIF_Zero_Shot_QA/mp4"
 gt_file_question="${GPT_Zero_Shot_QA}/TGIF_Zero_Shot_QA/test_q.json"
 gt_file_answers="${GPT_Zero_Shot_QA}/TGIF_Zero_Shot_QA/test_a.json"
-output_dir="./eval_output/${CKPT_NAME}/TGIF_Zero_Shot_QA"
+output_dir="runs/eval/${CKPT_NAME}/TGIF_Zero_Shot_QA"
 
 
 gpu_list="${CUDA_VISIBLE_DEVICES:-0}"

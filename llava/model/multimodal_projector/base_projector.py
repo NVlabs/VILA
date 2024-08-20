@@ -1,6 +1,23 @@
-import torch.nn as nn
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import re
+
 import torch
+import torch.nn as nn
 from transformers import AutoConfig, AutoModel, PretrainedConfig, PreTrainedModel
 
 
@@ -21,9 +38,7 @@ class SimpleResBlock(nn.Module):
         super().__init__()
         self.pre_norm = nn.LayerNorm(channels)
 
-        self.proj = nn.Sequential(
-            nn.Linear(channels, channels), nn.GELU(), nn.Linear(channels, channels)
-        )
+        self.proj = nn.Sequential(nn.Linear(channels, channels), nn.GELU(), nn.Linear(channels, channels))
 
     def forward(self, x):
         x = self.pre_norm(x)
@@ -31,7 +46,6 @@ class SimpleResBlock(nn.Module):
 
 
 class DownSampleBlock(nn.Module):
-
     def forward(self, x):
         vit_embeds = x
         h = w = int(vit_embeds.shape[1] ** 0.5)
@@ -53,10 +67,11 @@ class DownSampleBlock(nn.Module):
         x = x.view(n, int(h / 2), int(w / 2), int(c * 4))
         return x
 
+
 class MultimodalProjectorConfig(PretrainedConfig):
     model_type = "v2l_projector"
 
-    def __init__(self, mm_projector_type: str=None, **kwargs):
+    def __init__(self, mm_projector_type: str = None, **kwargs):
         super().__init__()
         self.mm_projector_type = mm_projector_type
 
@@ -64,9 +79,7 @@ class MultimodalProjectorConfig(PretrainedConfig):
 class MultimodalProjector(PreTrainedModel):
     config_class = MultimodalProjectorConfig
 
-    def __init__(
-        self, mm_projector_cfg: MultimodalProjectorConfig, config: PretrainedConfig
-    ):
+    def __init__(self, mm_projector_cfg: MultimodalProjectorConfig, config: PretrainedConfig):
         super().__init__(mm_projector_cfg)
         mm_projector_type = mm_projector_cfg.mm_projector_type
         if mm_projector_type == "identity":
@@ -79,7 +92,7 @@ class MultimodalProjector(PreTrainedModel):
                 nn.LayerNorm(config.mm_hidden_size * 4),
                 nn.Linear(config.mm_hidden_size * 4, config.hidden_size),
                 nn.GELU(),
-                nn.Linear(config.hidden_size, config.hidden_size)
+                nn.Linear(config.hidden_size, config.hidden_size),
             )
         else:
             mlp_gelu_match = re.match(r"^mlp(\d+)x_gelu$", mm_projector_type)
@@ -95,6 +108,7 @@ class MultimodalProjector(PreTrainedModel):
 
     def forward(self, x, *args, **kwargs):
         return self.layers(x)
+
 
 AutoConfig.register("v2l_projector", MultimodalProjectorConfig)
 AutoModel.register(MultimodalProjectorConfig, MultimodalProjector)

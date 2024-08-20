@@ -15,8 +15,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import transformers
-from transformers.image_transforms import np, Union, Iterable, Optional, ChannelDimension, \
-    infer_channel_dimension_format, get_channel_dimension_axis, to_channel_dimension_format
+from transformers.image_transforms import (
+    ChannelDimension,
+    Iterable,
+    Optional,
+    Union,
+    get_channel_dimension_axis,
+    infer_channel_dimension_format,
+    np,
+    to_channel_dimension_format,
+)
+
 
 def patched_normalize(
     image: np.ndarray,

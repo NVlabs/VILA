@@ -14,9 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import json
 import argparse
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--src", type=str)
@@ -27,8 +26,8 @@ cur_result = {}
 
 for line in open(args.src):
     data = json.loads(line)
-    qid = data['question_id']
-    cur_result[f'v1_{qid}'] = data['text']
+    qid = data["question_id"]
+    cur_result[f"v1_{qid}"] = data["text"]
 
-with open(args.dst, 'w') as f:
+with open(args.dst, "w") as f:
     json.dump(cur_result, f, indent=2)

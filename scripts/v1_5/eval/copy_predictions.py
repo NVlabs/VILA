@@ -18,18 +18,19 @@ import os
 import shutil
 import sys
 
+
 def main(model_name):
     # Define the dataset and prediction file mapping
     datasets = {
-        "vqav2": "playground/data/eval/vqav2/answers_upload/llava_vqav2_mscoco_test-dev2015/{}.json".format(model_name),
-        "vizwiz": "playground/data/eval/vizwiz/answers_upload/{}.json".format(model_name),
-        "mmbench": "playground/data/eval/mmbench/answers_upload/mmbench_dev_20230712/{}.xlsx".format(model_name),
-        "mmbench_cn": "playground/data/eval/mmbench_cn/answers_upload/mmbench_dev_cn_20231003/{}.xlsx".format(model_name),
-        "mmmu": "playground/data/eval/MMMU/test_results/{}.json".format(model_name),
+        "vqav2": f"playground/data/eval/vqav2/answers_upload/llava_vqav2_mscoco_test-dev2015/{model_name}.json",
+        "vizwiz": f"playground/data/eval/vizwiz/answers_upload/{model_name}.json",
+        "mmbench": f"playground/data/eval/mmbench/answers_upload/mmbench_dev_20230712/{model_name}.xlsx",
+        "mmbench_cn": f"playground/data/eval/mmbench_cn/answers_upload/mmbench_dev_cn_20231003/{model_name}.xlsx",
+        "mmmu": f"playground/data/eval/MMMU/test_results/{model_name}.json",
     }
 
     # Create the base directory
-    base_dir = "playground/data/predictions_upload/{}".format(model_name)
+    base_dir = f"playground/data/predictions_upload/{model_name}"
     os.makedirs(base_dir, exist_ok=True)
 
     # Copy each prediction file to its new location
@@ -41,7 +42,8 @@ def main(model_name):
         # Copy the prediction file
         dest_file = os.path.join(dataset_dir, os.path.basename(pred_file))
         shutil.copy(pred_file, dest_file)
-        print("Copied {} to {}".format(pred_file, dest_file))
+        print(f"Copied {pred_file} to {dest_file}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

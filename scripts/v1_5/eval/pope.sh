@@ -6,15 +6,22 @@ if [ "$#" -ge 3 ]; then
     CONV_MODE="$3"
 fi
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.model_vqa_loader \
-    --model-path $MODEL_PATH \
-    --question-file ./playground/data/eval/pope/llava_pope_test.jsonl \
-    --image-folder ./playground/data/eval/pope/val2014 \
-    --answers-file ./eval_output/$CKPT/pope/answers.jsonl \
-    --temperature 0 \
-    --conv-mode $CONV_MODE
+DATA_PATH="playground/data/eval/pope/llava_pope_test.jsonl"
+IMAGE_DIR="playground/data/eval/pope/val2014"
+ANNOTATION_DIR="playground/data/eval/pope/coco"
+OUTPUT_PATH="runs/eval/$CKPT/pope/outputs.jsonl"
+GENERATION_CONFIG='{"max_new_tokens": 128}'
 
-CUDA_VISIBLE_DEVICES=0 python llava/eval/eval_pope.py \
-    --annotation-dir ./playground/data/eval/pope/coco \
-    --question-file ./playground/data/eval/pope/llava_pope_test.jsonl \
-    --result-file ./eval_output/$CKPT/pope/answers.jsonl
+torchrun --nproc-per-node=8 \
+    llava/eval/model_vqa_loader.py \
+    --model-path $MODEL_PATH \
+    --conv-mode $CONV_MODE \
+    --generation-config "$GENERATION_CONFIG" \
+    --question-file $DATA_PATH \
+    --image-folder $IMAGE_DIR \
+    --answers-file $OUTPUT_PATH
+
+python llava/eval/eval_pope.py \
+    --annotation-dir $ANNOTATION_DIR \
+    --question-file $DATA_PATH \
+    --result-file $OUTPUT_PATH

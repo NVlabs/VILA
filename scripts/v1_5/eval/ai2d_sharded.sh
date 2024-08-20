@@ -18,9 +18,11 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
 
     CUDA_VISIBLE_DEVICES=${GPULIST[$GPU_IDX1]},${GPULIST[$GPU_IDX2]} python -m llava.eval.evaluate_vqa \
         --model-path $MODEL_PATH \
-        --image-folder ./playground/data/eval/ai2d \
+        --generation-config '{"max_new_tokens": 10}' \
         --dataset ai2diagram_test \
-        --answers-file ./eval_output/$CKPT/ai2d/$SPLIT/answers/${CHUNKS}_${IDX}.jsonl \
+        --data-path ./playground/data/eval/ai2d/test.jsonl \
+        --image-folder ./playground/data/eval/ai2d \
+        --answers-file runs/eval/$CKPT/ai2d/$SPLIT/answers/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --conv-mode $CONV_MODE &
@@ -28,14 +30,14 @@ done
 
 wait
 
-output_file=./eval_output/$CKPT/ai2d/$SPLIT/answers/merge.jsonl
+output_file=runs/eval/$CKPT/ai2d/$SPLIT/answers/merge.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/ai2d/$SPLIT/answers/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/ai2d/$SPLIT/answers/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
-python -m llava.eval.evaluate_vqa_score --answers-file $output_file  --dataset ai2diagram_test
+python -m llava.eval.evaluate_vqa_score --answers-file $output_file --metric accuracy

@@ -2,20 +2,24 @@ import base64
 import gzip
 import hashlib
 import io
-import os, os.path as osp
+import math
+import os
+import os.path as osp
 import random
 import re
 import sqlite3
 import sys
+import tempfile
 import uuid
 import warnings
-import tempfile
 from functools import partial
 from typing import Any, BinaryIO, Dict, Optional, TypeVar, Union
 from urllib.parse import quote, urlparse
 
 import numpy as np
+import torch
 import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
 
 from .wids_dl import download_and_open
 from .wids_lru import LRUCache
@@ -248,7 +252,7 @@ class IndexedTarSamples:
         # import gzip
         # print("convert to gzip IO stream")
         # stream = gzip.GzipFile(fileobj=stream)
-        
+
         if use_mmap:
             self.reader = MMIndexedTar(stream)
         else:
@@ -264,9 +268,7 @@ class IndexedTarSamples:
 
         # check that the number of samples is correct
         if expected_size is not None:
-            assert (
-                len(self) == expected_size
-            ), f"Expected {expected_size} samples, got {len(self)}"
+            assert len(self) == expected_size, f"Expected {expected_size} samples, got {len(self)}"
 
         self.uuid = str(uuid.uuid4())
 
@@ -312,25 +314,19 @@ def hash_localname(dldir="/tmp/_wids_cache"):
 
     connection = sqlite3.connect(os.path.join(dldir, "cache.db"))
     cursor = connection.cursor()
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS cache (url TEXT PRIMARY KEY, path TEXT, checksum TEXT)"
-    )
+    cursor.execute("CREATE TABLE IF NOT EXISTS cache (url TEXT PRIMARY KEY, path TEXT, checksum TEXT)")
     connection.commit()
 
     def f(shard):
         """Given a URL, return a local name for the shard."""
         if shard.startswith("pipe:"):
             # uuencode the entire URL string
-            hex32 = base64.urlsafe_b64encode(hashlib.sha256(shard.encode()).digest())[
-                :32
-            ].decode()
+            hex32 = base64.urlsafe_b64encode(hashlib.sha256(shard.encode()).digest())[:32].decode()
             return os.path.join(dldir, "pipe__" + hex32)
         else:
             # we hash the host and directory components into a 16 character string
             dirname = urldir(shard)
-            hex16 = base64.urlsafe_b64encode(hashlib.sha256(dirname.encode()).digest())[
-                :16
-            ].decode()
+            hex16 = base64.urlsafe_b64encode(hashlib.sha256(dirname.encode()).digest())[:16].decode()
             # the cache name is the concatenation of the hex16 string and the file name component of the URL
             cachename = "data__" + hex16 + "__" + os.path.basename(urlparse(shard).path)
             checksum = None
@@ -486,7 +482,7 @@ class ShardListDataset(Dataset[T]):
         """
         if options is None:
             options = {}
-        super(ShardListDataset, self).__init__()
+        super().__init__()
         # shards is a list of (filename, length) pairs. We'll need to
         # keep track of the lengths and cumulative lengths to know how
         # to map indices to shards and indices within shards.
@@ -520,6 +516,7 @@ class ShardListDataset(Dataset[T]):
             self.localname = localname
         else:
             import getpass
+
             # when no cache dir or localname are given, use the cache from the environment
             self.cache_dir = os.environ.get("WIDS_CACHE", f"~/.cache/_wids_cache")
             self.cache_dir = osp.expanduser(self.cache_dir)
@@ -548,9 +545,7 @@ class ShardListDataset(Dataset[T]):
         self.transformations = interpret_transformations(transformations)
 
         if lru_size > 200:
-            warnings.warn(
-                "LRU size is very large; consider reducing it to avoid running out of file descriptors"
-            )
+            warnings.warn("LRU size is very large; consider reducing it to avoid running out of file descriptors")
         self.cache = LRUShards(lru_size, localname=self.localname, keep=keep)
 
     def add_transform(self, transform):
@@ -572,11 +567,7 @@ class ShardListDataset(Dataset[T]):
         if accesses > 100 and misses / accesses > 0.3:
             # output a warning only once
             self.check_cache_misses = lambda: None
-            print(
-                "Warning: ShardListDataset has a cache miss rate of {:.1%}%".format(
-                    misses * 100.0 / accesses
-                )
-            )
+            print(f"Warning: ShardListDataset has a cache miss rate of {misses * 100.0 / accesses:.1%}%")
 
     def get_shard(self, index):
         """Get the shard and index within the shard corresponding to the given index."""
@@ -595,14 +586,14 @@ class ShardListDataset(Dataset[T]):
         url = desc["url"]
         if url.startswith(("https://", "http://", "gs://", "/", "~")):
             # absolute path or url path
-            url = url 
+            url = url
         else:
             # concat relative path
-            if self.base is None and "base_path" not in self.spec: 
+            if self.base is None and "base_path" not in self.spec:
                 raise FileNotFoundError("passing a relative path in shardlist but no base found.")
             base_path = self.spec["base_path"] if "base_path" in self.spec else self.base
             url = osp.abspath(osp.join(osp.expanduser(base_path), url))
-            
+
         desc["url"] = url
         try:
             shard = self.cache.get_shard(url)
@@ -776,13 +767,9 @@ def DistributedChunkedSampler(
     more workers, the fewer shards are used by each worker.
     """
     if drop_last is not None:
-        warnings.warn(
-            "DistributedChunkedSampler does not support drop_last, thus it will be ignored"
-        )
+        warnings.warn("DistributedChunkedSampler does not support drop_last, thus it will be ignored")
     if not dist.is_initialized():
-        warnings.warn(
-            "DistributedChunkedSampler is called without distributed initialized; assuming single process"
-        )
+        warnings.warn("DistributedChunkedSampler is called without distributed initialized; assuming single process")
         num_replicas = 1
         rank = 0
     else:
@@ -804,9 +791,6 @@ def DistributedChunkedSampler(
     )
 
 
-import torch, math
-from torch.utils.data.distributed import DistributedSampler
-
 class DistributedLocalSampler(DistributedSampler):
     def __iter__(self):
         if self.shuffle:
@@ -826,7 +810,7 @@ class DistributedLocalSampler(DistributedSampler):
                 indices += (indices * math.ceil(padding_size / len(indices)))[:padding_size]
         else:
             # remove tail of data to make it evenly divisible.
-            indices = indices[:self.total_size]
+            indices = indices[: self.total_size]
         assert len(indices) == self.total_size
 
         # subsample
@@ -835,7 +819,7 @@ class DistributedLocalSampler(DistributedSampler):
         begin_idx = chunk_size * self.rank
         stop_idx = chunk_size * (self.rank + 1)
         indices = indices[begin_idx:stop_idx]
-        
+
         # print("[SamplerIndices: ]", indices)
         assert len(indices) == self.num_samples
         return iter(indices)

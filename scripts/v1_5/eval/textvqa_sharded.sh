@@ -19,25 +19,25 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
 
     CUDA_VISIBLE_DEVICES=${GPULIST[$GPU_IDX1]},${GPULIST[$GPU_IDX2]} python -m llava.eval.model_vqa_loader \
     --model-path $MODEL_PATH \
+    --generation-config '{"max_new_tokens": 128}' \
     --question-file ./playground/data/eval/textvqa/llava_textvqa_val_v051_ocr.jsonl \
     --image-folder ./playground/data/eval/textvqa/train_images \
-    --answers-file ./eval_output/$CKPT/textvqa/answers/${CHUNKS}_${IDX}.jsonl \
+    --answers-file runs/eval/$CKPT/textvqa/answers/${CHUNKS}_${IDX}.jsonl \
     --num-chunks $CHUNKS \
     --chunk-idx $IDX \
-    --temperature 0 \
     --conv-mode $CONV_MODE &
 done
 
 wait
 
-output_file=./eval_output/$CKPT/textvqa/answers/merge.jsonl
+output_file=runs/eval/$CKPT/textvqa/answers/merge.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/textvqa/answers/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/textvqa/answers/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
 

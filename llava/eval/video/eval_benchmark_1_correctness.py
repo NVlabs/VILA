@@ -1,9 +1,15 @@
-import openai
-import os
 import argparse
-import json
 import ast
+import json
+import os
 from multiprocessing.pool import Pool
+
+import openai
+from openai import BadRequestError
+
+from .utils import get_client
+
+client = None
 
 
 def parse_args():
@@ -12,8 +18,9 @@ def parse_args():
     parser.add_argument("--output_dir", required=True, help="The path to save annotation json files.")
     parser.add_argument("--output_json", required=True, help="The path to save annotation final combined json file.")
     parser.add_argument("--api_key", required=True, help="OpenAI API key.")
-    parser.add_argument("--api_base", default="", type=str, help="OpenAI API base.")
+    parser.add_argument("--api_base", default=None, type=str, help="OpenAI API base.")
     parser.add_argument("--num_tasks", required=True, type=int, help="Number of splits.")
+    parser.add_argument("--model", default="gpt-3.5-turbo", type=str, help="OpenAI model.")
     args = parser.parse_args()
     return args
 
@@ -28,47 +35,54 @@ def annotate(prediction_set, caption_files, output_dir, args):
     if args.api_base is not None:
         openai.api_base = args.api_base
     for file in caption_files:
-        key = file[:-5] # Strip file extension
+        key = file[:-5]  # Strip file extension
         qa_set = prediction_set[key]
-        question = qa_set['q']
-        answer = qa_set['a']
-        pred = qa_set['pred']
+        question = qa_set["q"]
+        answer = qa_set["a"]
+        pred = qa_set["pred"]
         try:
             # Compute the correctness score
-            completion = openai.chat.completions.create(
-                model="gpt-3.5-turbo",
+            # completion = create_chat_completion(
+            completion = client.chat.completions.create(
+                model=args.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": 
-                            "You are an intelligent chatbot designed for evaluating the factual accuracy of generative outputs for video-based question-answer pairs. "
-                            "Your task is to compare the predicted answer with the correct answer and determine if they are factually consistent. Here's how you can accomplish the task:"
-                            "------"
-                            "##INSTRUCTIONS: "
-                            "- Focus on the factual consistency between the predicted answer and the correct answer. The predicted answer should not contain any misinterpretations or misinformation.\n"
-                            "- The predicted answer must be factually accurate and align with the video content.\n"
-                            "- Consider synonyms or paraphrases as valid matches.\n"
-                            "- Evaluate the factual accuracy of the prediction compared to the answer."
+                        "content": "You are an intelligent chatbot designed for evaluating the factual accuracy of generative outputs for video-based question-answer pairs. "
+                        "Your task is to compare the predicted answer with the correct answer and determine if they are factually consistent. Here's how you can accomplish the task:"
+                        "------"
+                        "##INSTRUCTIONS: "
+                        "- Focus on the factual consistency between the predicted answer and the correct answer. The predicted answer should not contain any misinterpretations or misinformation.\n"
+                        "- The predicted answer must be factually accurate and align with the video content.\n"
+                        "- Consider synonyms or paraphrases as valid matches.\n"
+                        "- Evaluate the factual accuracy of the prediction compared to the answer.",
                     },
                     {
                         "role": "user",
-                        "content":
-                            "Please evaluate the following video-based question-answer pair:\n\n"
-                            f"Question: {question}\n"
-                            f"Correct Answer: {answer}\n"
-                            f"Predicted Answer: {pred}\n\n"
-                            "Provide your evaluation only as a factual accuracy score where the factual accuracy score is an integer value between 0 and 5, with 5 indicating the highest level of factual consistency. "
-                            "Please generate the response in the form of a Python dictionary string with keys 'score', where its value is the factual accuracy score in INTEGER, not STRING."
-                            "DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. "
-                            "For example, your response should look like this: {''score': 4.8}."
-                    }
-                ]
+                        "content": "Please evaluate the following video-based question-answer pair:\n\n"
+                        f"Question: {question}\n"
+                        f"Correct Answer: {answer}\n"
+                        f"Predicted Answer: {pred}\n\n"
+                        "Provide your evaluation only as a factual accuracy score where the factual accuracy score is an integer value between 0 and 5, with 5 indicating the highest level of factual consistency. "
+                        "Please generate the response in the form of a Python dictionary string with keys 'score', where its value is the factual accuracy score in INTEGER, not STRING."
+                        "DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. "
+                        "For example, your response should look like this: {''score': 4.8}.",
+                    },
+                ],
             )
             # Convert response to a Python dictionary.
             response_message = completion.choices[0].message.content
             response_dict = ast.literal_eval(response_message)
             result_qa_pair = [response_dict, qa_set]
 
+            # Save the question-answer pairs to a json file.
+            with open(f"{output_dir}/{key}.json", "w") as f:
+                json.dump(result_qa_pair, f)
+        except BadRequestError as e:
+            print(f"BadRequestError processing file '{key}': {e}")
+            response_dict = {"score": 0}
+            qa_set["pred"] = ""
+            result_qa_pair = [response_dict, qa_set]
             # Save the question-answer pairs to a json file.
             with open(f"{output_dir}/{key}.json", "w") as f:
                 json.dump(result_qa_pair, f)
@@ -85,7 +99,7 @@ def main():
     args = parse_args()
 
     file = open(args.pred_path)
-    pred_contents = json.load(file)
+    pred_contents = [eval(i.strip()) for i in file.readlines()]
 
     # Dictionary to store the count of occurrences for each video_id
     video_id_counts = {}
@@ -93,7 +107,7 @@ def main():
 
     # Iterate through each sample in pred_contents
     for sample in pred_contents:
-        video_id = sample['video_name']
+        video_id = sample["video_name"]
         if video_id in video_id_counts:
             video_id_counts[video_id] += 1
         else:
@@ -101,11 +115,11 @@ def main():
 
         # Create a new sample with the modified key
         new_sample = sample
-        new_sample['video_name'] = f"{video_id}_{video_id_counts[video_id]}"
+        new_sample["video_name"] = f"{video_id}_{video_id_counts[video_id]}"
         new_pred_contents.append(new_sample)
 
     # Generating list of id's and corresponding files
-    id_list = [x['video_name'] for x in new_pred_contents]
+    id_list = [x["video_name"] for x in new_pred_contents]
     caption_files = [f"{id}.json" for id in id_list]
 
     output_dir = args.output_dir
@@ -116,10 +130,10 @@ def main():
     # Preparing dictionary of question-answer sets
     prediction_set = {}
     for sample in new_pred_contents:
-        id = sample['video_name']
-        question = sample['Q']
-        answer = sample['A']
-        pred = sample['pred']
+        id = sample["video_name"]
+        question = sample["Q"]
+        answer = sample["A"]
+        pred = sample["pred"]
         qa_set = {"q": question, "a": answer, "pred": pred}
         prediction_set[id] = qa_set
 
@@ -131,6 +145,9 @@ def main():
     while True:
         try:
             # Files that have not been processed yet.
+            global client
+            client = get_client()
+
             completed_files = os.listdir(output_dir)
             print(f"completed_files: {len(completed_files)}")
 
@@ -146,7 +163,7 @@ def main():
 
             # Split tasks into parts.
             part_len = len(incomplete_files) // num_tasks
-            all_parts = [incomplete_files[i:i + part_len] for i in range(0, len(incomplete_files), part_len)]
+            all_parts = [incomplete_files[i : i + part_len] for i in range(0, len(incomplete_files), part_len)]
             task_args = [(prediction_set, part, args.output_dir, args) for part in all_parts]
 
             # Use a pool of workers to process the files in parallel.
@@ -164,7 +181,7 @@ def main():
     for file_name in os.listdir(output_dir):
         if file_name.endswith(".json"):
             file_path = os.path.join(output_dir, file_name)
-            with open(file_path, "r") as json_file:
+            with open(file_path) as json_file:
                 content = json.load(json_file)
                 combined_contents[file_name[:-5]] = content
 
@@ -178,13 +195,23 @@ def main():
     count = 0
     for key, result in combined_contents.items():
         count += 1
-        score_match = result[0]['score']
+        score_match = result[0]["score"]
         score = int(score_match)
         score_sum += score
     average_score = score_sum / count
 
     print("Average score for correctness:", average_score)
 
+    result_file = os.path.join(os.path.dirname(os.path.dirname(args.output_json)), "results.json")
+    sample_set = {"gpt": args.model, "task": "1_correctness", "score": average_score}
+    with open(result_file, "a") as f:
+        f.write(json.dumps(sample_set) + "\n")
+
 
 if __name__ == "__main__":
+    import time
+
+    start_time = time.time()
     main()
+    end_time = time.time()
+    print(f"took {end_time - start_time} seconds")

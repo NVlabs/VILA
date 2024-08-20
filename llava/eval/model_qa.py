@@ -1,12 +1,13 @@
 # This file is modified from https://github.com/haotian-liu/LLaVA/
 
 import argparse
-from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria
-import torch
-import os
 import json
-from tqdm import tqdm
+import os
+
 import shortuuid
+import torch
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria
 
 from llava.conversation import default_conversation
 from llava.utils import disable_torch_init
@@ -24,7 +25,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         if self.start_len is None:
             self.start_len = self.input_ids.shape[1]
         else:
-            outputs = self.tokenizer.batch_decode(output_ids[:, self.start_len:], skip_special_tokens=True)[0]
+            outputs = self.tokenizer.batch_decode(output_ids[:, self.start_len :], skip_special_tokens=True)[0]
             for keyword in self.keywords:
                 if keyword in outputs:
                     return True
@@ -37,11 +38,9 @@ def eval_model(model_name, questions_file, answers_file):
     disable_torch_init()
     model_name = os.path.expanduser(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-    model = AutoModelForCausalLM.from_pretrained(model_name,
-        torch_dtype=torch.float16).cuda()
+    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16).cuda()
 
-
-    ques_file = open(os.path.expanduser(questions_file), "r")
+    ques_file = open(os.path.expanduser(questions_file))
     ans_file = open(os.path.expanduser(answers_file), "w")
     for i, line in enumerate(tqdm(ques_file)):
         idx = json.loads(line)["question_id"]
@@ -59,7 +58,8 @@ def eval_model(model_name, questions_file, answers_file):
             use_cache=True,
             temperature=0.7,
             max_new_tokens=1024,
-            stopping_criteria=[stopping_criteria])
+            stopping_criteria=[stopping_criteria],
+        )
 
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
         try:
@@ -68,15 +68,17 @@ def eval_model(model_name, questions_file, answers_file):
             outputs += conv.sep
             index = outputs.index(conv.sep, len(prompt))
 
-        outputs = outputs[len(prompt) + len(conv.roles[1]) + 2:index].strip()
+        outputs = outputs[len(prompt) + len(conv.roles[1]) + 2 : index].strip()
         ans_id = shortuuid.uuid()
-        ans_file.write(json.dumps({"question_id": idx,
-                                   "text": outputs,
-                                   "answer_id": ans_id,
-                                   "model_id": model_name,
-                                   "metadata": {}}) + "\n")
+        ans_file.write(
+            json.dumps(
+                {"question_id": idx, "text": outputs, "answer_id": ans_id, "model_id": model_name, "metadata": {}}
+            )
+            + "\n"
+        )
         ans_file.flush()
     ans_file.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,4 +1,3 @@
-
 """ AutoResume callback.
 
 A transformer trainer callback for interfacing with ADLR's AutoResume SDK.
@@ -14,12 +13,14 @@ from transformers.utils import logging
 
 logger = logging.get_logger("transformers")
 
+
 def rank_print(*s):
     if not torch.distributed.is_initialized():
         rank = 0
     else:
-        rank =torch.distributed.get_rank()
+        rank = torch.distributed.get_rank()
     print(rank, *s)
+
 
 sys.path.append(os.environ.get("SUBMIT_SCRIPTS", "."))
 try:
