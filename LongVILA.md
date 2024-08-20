@@ -9,8 +9,8 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
 
-[![Paper](https://img.shields.io/badge/Paper-Arvix%20Link-green)]()
-[![Huggingface Models](https://img.shields.io/badge/Models-Huggingface%20Models-bron)]()
+[![Paper](https://img.shields.io/badge/Paper-Arvix%20Link-green)](https://arxiv.org/abs/2408.10188)
+[![Huggingface Models](https://img.shields.io/badge/Models-Huggingface%20Models-bron)](https://huggingface.co/collections/Efficient-Large-Model/longvila-66c3fce79284c8209f119b32)
 
 ## 💡 Introduction
 
