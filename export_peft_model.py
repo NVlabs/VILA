@@ -17,10 +17,12 @@
 
 import os
 import sys
-import transformers
-from llava.model import *
-from peft import PeftModel
+
 import torch
+import transformers
+from peft import PeftModel
+
+from llava.model import *
 
 model_name_or_path = "lmsys/vicuna-7b-v1.5"
 peft_dir = sys.argv[1]
@@ -31,11 +33,7 @@ os.makedirs(save_dir, exist_ok=True)
 config = LlavaConfig.from_pretrained(model_name_or_path)
 config._attn_implementation = "flash_attention_2"
 torch.set_default_dtype(torch.bfloat16)
-model = LlavaLlamaForCausalLM.from_pretrained(
-    model_name_or_path,
-    config=config,
-    device_map="auto"
-)
+model = LlavaLlamaForCausalLM.from_pretrained(model_name_or_path, config=config, device_map="auto")
 model = PeftModel.from_pretrained(model, peft_dir)
 print(model)
 model = model.merge_and_unload()

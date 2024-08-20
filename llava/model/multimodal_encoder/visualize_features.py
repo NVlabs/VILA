@@ -6,34 +6,32 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 import argparse
-from collections import defaultdict
 import gc
 import math
 import os
-from PIL import Image
 import random
-from tqdm import tqdm
+from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Tuple
 
-#import cv2
+# import cv2
 import numpy as np
 import torch
-from torch import nn
 import torch.distributed as dist
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from torchvision.utils import make_grid
-
-from einops import rearrange
-
-from datasets import load_dataset_builder, load_dataset
+from datasets import load_dataset, load_dataset_builder
 from datasets.distributed import split_dataset_by_node
+from einops import rearrange
+from PIL import Image
+from torch import nn
+from torch.utils.data import DataLoader
+from torchvision.utils import make_grid
+from tqdm import tqdm
 
-#from common import rank_print, load_model, get_standard_transform, collate
+# from common import rank_print, load_model, get_standard_transform, collate
 #
-#try:
+# try:
 #    import wandb
-#except ImportError:
+# except ImportError:
 #    wandb = None
 
 
@@ -42,47 +40,54 @@ LAYER_STATS = dict()
 
 @torch.inference_mode()
 def main(rank: int = 0, world_size: int = 1):
-    '''
+    """
     Computes the RankMe (http://arxiv.org/abs/2210.02885) and LiDAR (http://arxiv.org/abs/2312.04000)
     estimates of the rank of the produced embeddings. While RADIO doesn't train in a multi-view setting
     which is an assumption of LiDAR, the metric does integrate an important concept of the invariance of the
     summary features to different view/augmentations of the same image.
-    '''
+    """
 
     local_rank = rank % torch.cuda.device_count()
     torch.cuda.set_device(local_rank)
     cv2.setNumThreads(1)
 
-    device = torch.device('cuda', local_rank)
-    parser = argparse.ArgumentParser(description='Compute SSL embedding rank estimates')
-    parser.add_argument('-v', '--model-version', default='radio_v2',
-                        help='Which radio model to load.'
+    device = torch.device("cuda", local_rank)
+    parser = argparse.ArgumentParser(description="Compute SSL embedding rank estimates")
+    parser.add_argument("-v", "--model-version", default="radio_v2", help="Which radio model to load.")
+    parser.add_argument("-d", "--dataset", default="imagenet-1k", help="The name of the dataset to classify")
+    parser.add_argument("--split", default="validation", help="The dataset split to use.")
+    parser.add_argument("-n", default=10, type=int, help="The number of samples to load")
+    parser.add_argument(
+        "-r",
+        "--resolution",
+        nargs="+",
+        type=int,
+        default=None,
+        help="The input image resolution."
+        " If one value is specified, the shortest dimension is resized to this."
+        " If two, the image is center cropped."
+        " If not specified, center cropped 378px is used."
+        " Default: The RADIO model's preferred resolution.",
     )
-    parser.add_argument('-d', '--dataset', default='imagenet-1k',
-                        help='The name of the dataset to classify'
+    parser.add_argument(
+        "--resize-multiple",
+        type=int,
+        default=None,
+        help="Resize images with dimensions a multiple of this value."
+        " This should be equal to the patch size of a ViT (e.g. RADIOv1)",
     )
-    parser.add_argument('--split', default='validation',
-                        help='The dataset split to use.'
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="The batch size. If the input is variable sized, then this argument becomes a maximum.",
     )
-    parser.add_argument('-n', default=10, type=int, help='The number of samples to load')
-    parser.add_argument('-r', '--resolution', nargs='+', type=int, default=None,
-                        help='The input image resolution.'
-                             ' If one value is specified, the shortest dimension is resized to this.'
-                             ' If two, the image is center cropped.'
-                             ' If not specified, center cropped 378px is used.'
-                             ' Default: The RADIO model\'s preferred resolution.'
+    parser.add_argument("--workers", default=8, type=int, help="Number of loader workers to use")
+    parser.add_argument(
+        "--vitdet-window-size", default=None, type=int, help="Enable ViTDet at the specific window size"
     )
-    parser.add_argument('--resize-multiple', type=int, default=None,
-                        help='Resize images with dimensions a multiple of this value.'
-                             ' This should be equal to the patch size of a ViT (e.g. RADIOv1)'
-    )
-    parser.add_argument('--batch-size', type=int, default=16,
-                        help='The batch size. If the input is variable sized, then this argument becomes a maximum.'
-    )
-    parser.add_argument('--workers', default=8, type=int, help='Number of loader workers to use')
-    parser.add_argument('--vitdet-window-size', default=None, type=int, help='Enable ViTDet at the specific window size')
-    parser.add_argument('--output-dir', default='vis_denoise', type=str)
-    parser.add_argument('--adaptor-name', default=None, type=str, help='Generate features from a teacher adaptor')
+    parser.add_argument("--output-dir", default="vis_denoise", type=str)
+    parser.add_argument("--adaptor-name", default=None, type=str, help="Generate features from a teacher adaptor")
 
     args, _ = parser.parse_known_args()
 
@@ -90,14 +95,16 @@ def main(rank: int = 0, world_size: int = 1):
     np.random.seed(42 + rank)
     random.seed(42 + rank)
 
-    rank_print('Loading model...')
-    model, preprocessor, info = load_model(args.model_version, vitdet_window_size=args.vitdet_window_size, adaptor_name=args.adaptor_name)
+    rank_print("Loading model...")
+    model, preprocessor, info = load_model(
+        args.model_version, vitdet_window_size=args.vitdet_window_size, adaptor_name=args.adaptor_name
+    )
     model.to(device=device).eval()
     if isinstance(preprocessor, nn.Module):
         preprocessor.to(device).eval()
-    rank_print('Done')
+    rank_print("Done")
 
-    rank_print('Loading dataset...')
+    rank_print("Loading dataset...")
     ds_builder = load_dataset_builder(args.dataset, trust_remote_code=True)
 
     if args.resolution is None:
@@ -106,26 +113,32 @@ def main(rank: int = 0, world_size: int = 1):
     patch_size = model.patch_size
 
     if args.resize_multiple is None:
-        args.resize_multiple = getattr(model, 'min_resolution_step', model.patch_size)
+        args.resize_multiple = getattr(model, "min_resolution_step", model.patch_size)
 
     transform = get_standard_transform(args.resolution, args.resize_multiple)
     dataset = ds_builder.as_dataset(split=args.split)
     dataset = dataset.to_iterable_dataset(num_shards=world_size * max(1, args.workers))
     dataset = split_dataset_by_node(dataset, rank=rank, world_size=world_size)
-    dataset = dataset.map(lambda ex: dict(image=transform(ex['image']), label=torch.as_tensor(ex['label'], dtype=torch.int64)))
-
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False,
-                        num_workers=args.workers, collate_fn=collate,
-                        pin_memory=args.workers > 0,
-                        drop_last=False,
+    dataset = dataset.map(
+        lambda ex: dict(image=transform(ex["image"]), label=torch.as_tensor(ex["label"], dtype=torch.int64))
     )
-    rank_print('Done')
-    rank_print(f'Description: {ds_builder.info.description}')
+
+    loader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.workers,
+        collate_fn=collate,
+        pin_memory=args.workers > 0,
+        drop_last=False,
+    )
+    rank_print("Done")
+    rank_print(f"Description: {ds_builder.info.description}")
 
     dirs = dict(
-        orig=os.path.join(args.output_dir, 'orig'),
-        viz=os.path.join(args.output_dir, 'viz'),
-        sbs=os.path.join(args.output_dir, 'sbs'),
+        orig=os.path.join(args.output_dir, "orig"),
+        viz=os.path.join(args.output_dir, "viz"),
+        sbs=os.path.join(args.output_dir, "sbs"),
     )
 
     for d in dirs.values():
@@ -146,7 +159,7 @@ def main(rank: int = 0, world_size: int = 1):
                 output = model(p_images)
                 if args.adaptor_name:
                     all_feat = [
-                        output['backbone'].features,
+                        output["backbone"].features,
                         output[args.adaptor_name].features,
                     ]
                 else:
@@ -157,7 +170,7 @@ def main(rank: int = 0, world_size: int = 1):
             num_rows = images.shape[-2] // patch_size
             num_cols = images.shape[-1] // patch_size
 
-            all_feat = rearrange(all_feat, 'b m (h w) c -> b m h w c', h=num_rows, w=num_cols).float()
+            all_feat = rearrange(all_feat, "b m (h w) c -> b m h w c", h=num_rows, w=num_cols).float()
 
             for i, feats in enumerate(all_feat):
                 colored = []
@@ -225,9 +238,7 @@ def get_pca_map(
         # make it (1, h, w, C)
         feature_map = feature_map[None]
     if pca_stats is None:
-        reduct_mat, color_min, color_max = get_robust_pca(
-            feature_map.reshape(-1, feature_map.shape[-1])
-        )
+        reduct_mat, color_min, color_max = get_robust_pca(feature_map.reshape(-1, feature_map.shape[-1]))
     else:
         reduct_mat, color_min, color_max = pca_stats
     pca_color = feature_map @ reduct_mat
@@ -254,9 +265,7 @@ def get_scale_map(
     """
     if scalar_map.shape[0] != 1:
         scalar_map = scalar_map[None]
-    scalar_map = (scalar_map - scalar_map.min()) / (
-        scalar_map.max() - scalar_map.min() + 1e-6
-    )
+    scalar_map = (scalar_map - scalar_map.min()) / (scalar_map.max() - scalar_map.min() + 1e-6)
     scalar_map = F.interpolate(
         scalar_map.permute(0, 3, 1, 2),
         size=img_size,
@@ -288,9 +297,7 @@ def get_similarity_map(features: torch.Tensor, img_size=(224, 224)):
     similarity_map = similarity_map_flat.view(H, W)
 
     # Normalize the similarity map to be in the range [0, 1] for visualization
-    similarity_map = (similarity_map - similarity_map.min()) / (
-        similarity_map.max() - similarity_map.min()
-    )
+    similarity_map = (similarity_map - similarity_map.min()) / (similarity_map.max() - similarity_map.min())
     # we don't want the center patch to be the most similar
     similarity_map[H // 2, W // 2] = -1.0
     similarity_map = (
@@ -323,23 +330,16 @@ def get_cluster_map(
     if feature_map.shape[0] != 1:
         # make it (1, h, w, C)
         feature_map = feature_map[None]
-    labels = kmeans.fit_predict(
-        feature_map.reshape(1, -1, feature_map.shape[-1])
-    ).float()
+    labels = kmeans.fit_predict(feature_map.reshape(1, -1, feature_map.shape[-1])).float()
     labels = (
-        F.interpolate(
-            labels.reshape(1, *feature_map.shape[:-1]), size=img_size, mode="nearest"
-        )
-        .squeeze()
-        .cpu()
-        .numpy()
+        F.interpolate(labels.reshape(1, *feature_map.shape[:-1]), size=img_size, mode="nearest").squeeze().cpu().numpy()
     ).astype(int)
     cmap = plt.get_cmap("rainbow", num_clusters)
     cluster_map = cmap(labels)[..., :3]
     return cluster_map.reshape(img_size[0], img_size[1], 3)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     rank = 0
     world_size = 1
 

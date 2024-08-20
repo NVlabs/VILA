@@ -6,20 +6,26 @@ if [ "$#" -ge 3 ]; then
     CONV_MODE="$3"
 fi
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.evaluate_vqa \
+torchrun --nproc-per-node=8 \
+    llava/eval/evaluate_vqa.py \
     --model-path $MODEL_PATH \
-    --image-folder ./playground/data/eval/chartqa \
-    --dataset  chartqa_test_human \
     --conv-mode $CONV_MODE \
-    --answers-file ./eval_output/$CKPT/chartqa/answers1/merge.jsonl
+    --generation-config '{"max_new_tokens": 100}' \
+    --dataset chartqa_test_human \
+    --image-folder ./playground/data/eval/chartqa \
+    --data-path ./playground/data/eval/chartqa/test_human.jsonl \
+    --answers-file runs/eval/$CKPT/chartqa/answers1/merge.jsonl
 
-python -m llava.eval.evaluate_vqa_score --answers-file ./eval_output/$CKPT/chartqa/answers1/merge.jsonl --dataset  chartqa_test_human
+python -m llava.eval.evaluate_vqa_score --answers-file runs/eval/$CKPT/chartqa/answers1/merge.jsonl --metric relaxed_accuracy
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.evaluate_vqa \
+torchrun --nproc-per-node=8 \
+    llava/eval/evaluate_vqa.py \
     --model-path $MODEL_PATH \
-    --image-folder ./playground/data/eval/chartqa \
-    --dataset  chartqa_test_augmented \
     --conv-mode $CONV_MODE \
-    --answers-file ./eval_output/$CKPT/chartqa/answers2/merge.jsonl
+    --generation-config '{"max_new_tokens": 100}' \
+    --dataset chartqa_test_augmented \
+    --data-path ./playground/data/eval/chartqa/test_augmented.jsonl \
+    --image-folder ./playground/data/eval/chartqa \
+    --answers-file runs/eval/$CKPT/chartqa/answers2/merge.jsonl
 
-python -m llava.eval.evaluate_vqa_score --answers-file --answers-file ./eval_output/$CKPT/chartqa/answers2/merge.jsonl --dataset  chartqa_test_human
+python -m llava.eval.evaluate_vqa_score --answers-file runs/eval/$CKPT/chartqa/answers2/merge.jsonl --metric relaxed_accuracy

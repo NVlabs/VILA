@@ -10,7 +10,7 @@ GPT_Zero_Shot_QA="/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/video_
 video_dir="${GPT_Zero_Shot_QA}/MSRVTT_Zero_Shot_QA/videos/all"
 gt_file_question="${GPT_Zero_Shot_QA}/MSRVTT_Zero_Shot_QA/test_q.json"
 gt_file_answers="${GPT_Zero_Shot_QA}/MSRVTT_Zero_Shot_QA/test_a.json"
-output_dir="./eval_output/${CKPT_NAME}/MSRVTT_Zero_Shot_QA"
+output_dir="runs/eval/${CKPT_NAME}/MSRVTT_Zero_Shot_QA"
 
 
 

@@ -7,14 +7,20 @@ if [ "$#" -ge 4 ]; then
     CONV_MODE="$4"
 fi
 
-CUDA_VISIBLE_DEVICES=0 python -m llava.eval.model_vqa_mmmu \
-    --model_path $MODEL_PATH \
-    --data_path ./playground/data/eval/MMMU \
+DATA_PATH="playground/data/eval/MMMU"
+ANSWER_PATH="playground/data/eval/MMMU/answer_dict_val.json"
+OUTPUT_PATH="runs/${CKPT}/mmmu/${SPLIT}/outputs.json"
+GENERATION_CONFIG='{"max_new_tokens": 128, "do_sample": true, "num_beams": 5}'
+
+torchrun --nproc-per-node=8 \
+    llava/eval/model_vqa_mmmu.py \
+    --model-path $MODEL_PATH \
     --conv-mode $CONV_MODE \
-    --config_path llava/eval/mmmu_utils/configs/llava1.5.yaml \
-    --output_path ./eval_output/$CKPT/MMMU/${SPLIT}_answers.json \
+    --generation-config "$GENERATION_CONFIG" \
+    --data-path $DATA_PATH \
+    --output-path $OUTPUT_PATH \
     --split $SPLIT
 
 if [ "$SPLIT" = "validation" ]; then
-    python llava/eval/eval_mmmu.py --output_path ./eval_output/$CKPT/MMMU/${SPLIT}_answers.json --answer_path ./playground/data/eval/MMMU/answer_dict_val.json
+    python llava/eval/eval_mmmu.py --output_path $OUTPUT_PATH --answer_path $ANSWER_PATH
 fi

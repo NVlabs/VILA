@@ -1,20 +1,24 @@
 # This file is modified from https://github.com/haotian-liu/LLaVA/
 
 import argparse
+import os
+import os.path as osp
 import re
 from io import BytesIO
-import os, os.path as osp
 
 import requests
 import torch
 from PIL import Image
 
-from llava.constants import (DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN,
-                             DEFAULT_IMAGE_TOKEN, IMAGE_PLACEHOLDER,
-                             IMAGE_TOKEN_INDEX)
+from llava.constants import (
+    DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    IMAGE_PLACEHOLDER,
+    IMAGE_TOKEN_INDEX,
+)
 from llava.conversation import SeparatorStyle, conv_templates
-from llava.mm_utils import (KeywordsStoppingCriteria, get_model_name_from_path,
-                            process_images, tokenizer_image_token)
+from llava.mm_utils import KeywordsStoppingCriteria, get_model_name_from_path, process_images, tokenizer_image_token
 from llava.model.builder import load_pretrained_model
 from llava.utils import disable_torch_init
 
@@ -41,6 +45,7 @@ def load_images(image_files):
         out.append(image)
     return out
 
+
 def eval_model(args):
     # Model
     disable_torch_init()
@@ -56,8 +61,9 @@ def eval_model(args):
             assert osp.exists(args.video_file), "video file not found"
             video_file = args.video_file
         from llava.mm_utils import opencv_extract_frames
-        images = opencv_extract_frames(video_file, args.num_video_frames)
-        
+
+        images, num_frames = opencv_extract_frames(video_file, args.num_video_frames)
+
     model_name = get_model_name_from_path(args.model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, model_name, args.model_base)
 
@@ -101,9 +107,6 @@ def eval_model(args):
     conv.append_message(conv.roles[1], None)
     prompt = conv.get_prompt()
 
-    
-        
-        
     images_tensor = process_images(images, image_processor, model.config).to(model.device, dtype=torch.float16)
     input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).cuda()
 

@@ -14,20 +14,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # This file is modified from https://github.com/haotian-liu/LLaVA/
-import os, os.path as osp
-from transformers import AutoConfig
-from transformers import  PretrainedConfig
-from huggingface_hub import snapshot_download, repo_exists
-from huggingface_hub.utils import validate_repo_id, HFValidationError
+import os
+import os.path as osp
+
+from huggingface_hub import repo_exists, snapshot_download
+from huggingface_hub.utils import HFValidationError, validate_repo_id
+from transformers import AutoConfig, PretrainedConfig
+
 
 def get_model_config(config):
     default_keys = ["llm_cfg", "vision_tower_cfg", "mm_projector_cfg"]
-    
+
     if hasattr(config, "_name_or_path") and len(config._name_or_path) >= 2:
         root_path = config._name_or_path
     else:
-        root_path = config.resume_path 
-        
+        root_path = config.resume_path
+
     # download from huggingface
     if root_path is not None and not osp.exists(root_path):
         try:
@@ -49,7 +51,7 @@ def get_model_config(config):
             return_list.append(os.path.join(root_path, key[:-4]))
         elif isinstance(cfg, str):
             return_list.append(cfg)
-        
+
     return return_list
 
 
@@ -75,12 +77,8 @@ def auto_upgrade(config):
     cfg = AutoConfig.from_pretrained(config)
     if "llava" in config and "llava" not in cfg.model_type:
         assert cfg.model_type == "llama"
-        print(
-            "You are using newer LLaVA code base, while the checkpoint of v0 is from older code base."
-        )
-        print(
-            "You must upgrade the checkpoint to the new code base (this can be done automatically)."
-        )
+        print("You are using newer LLaVA code base, while the checkpoint of v0 is from older code base.")
+        print("You must upgrade the checkpoint to the new code base (this can be done automatically).")
         confirm = input("Please confirm that you want to upgrade the checkpoint. [Y/N]")
         if confirm.lower() in ["y", "yes"]:
             print("Upgrading checkpoint...")

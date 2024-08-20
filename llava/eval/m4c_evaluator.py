@@ -186,9 +186,7 @@ class EvalAIAnswerProcessor:
     def process_punctuation(self, in_text):
         out_text = in_text
         for p in self.PUNCTUATIONS:
-            if (p + " " in in_text or " " + p in in_text) or (
-                re.search(self.COMMA_STRIP, in_text) is not None
-            ):
+            if (p + " " in in_text or " " + p in in_text) or (re.search(self.COMMA_STRIP, in_text) is not None):
                 out_text = out_text.replace(p, "")
             else:
                 out_text = out_text.replace(p, " ")
@@ -236,9 +234,7 @@ class TextVQAAccuracyEvaluator:
             accs = []
             for gt_answer in gt_answers:
                 other_answers = [item for item in gt_answers if item != gt_answer]
-                matching_answers = [
-                    item for item in other_answers if item[1] == unique_answer
-                ]
+                matching_answers = [item for item in other_answers if item[1] == unique_answer]
                 acc = min(1, float(len(matching_answers)) / 3)
                 accs.append(acc)
             unique_answer_scores[unique_answer] = sum(accs) / len(accs)
@@ -289,9 +285,7 @@ class STVQAANLSEvaluator:
     def eval_pred_list(self, pred_list):
         pred_scores = []
         for entry in pred_list:
-            anls = max(
-                self.get_anls(entry["pred_answer"], gt) for gt in entry["gt_answers"]
-            )
+            anls = max(self.get_anls(entry["pred_answer"], gt) for gt in entry["gt_answers"])
             pred_scores.append(anls)
 
         accuracy = sum(pred_scores) / len(pred_scores)

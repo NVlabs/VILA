@@ -29,7 +29,7 @@ class AtomicJsonUpdate:
 
     def __enter__(self):
         # Read the original file
-        with open(self.filename, "r") as file:
+        with open(self.filename) as file:
             self.data = json.load(file)
         return self.data
 
@@ -78,9 +78,7 @@ def urldirbase(url):
     path_without_filename = os.path.dirname(path)
 
     # Reconstruct URL without filename
-    url_without_filename = urlunparse(
-        (scheme, parsed_url.netloc, path_without_filename, "", "", "")
-    )
+    url_without_filename = urlunparse((scheme, parsed_url.netloc, path_without_filename, "", "", ""))
 
     return url_without_filename
 
@@ -127,9 +125,7 @@ def main_create(args):
         md5sum = wids.compute_file_md5sum(downloaded)
         nsamples = wids.compute_num_samples(downloaded)
         filesize = os.stat(downloaded).st_size
-        files.append(
-            dict(url=fname, md5sum=md5sum, nsamples=nsamples, filesize=filesize)
-        )
+        files.append(dict(url=fname, md5sum=md5sum, nsamples=nsamples, filesize=filesize))
         downloader.release(downloaded)
 
     files = sorted(files, key=lambda x: x["url"])
@@ -271,79 +267,45 @@ def main_sample(args):
 def main():
     """Commands for manipulating the shard index."""
     # Create the top-level parser
-    parser = argparse.ArgumentParser(
-        description="Command line tool with subcommands for file operations."
-    )
-    subparsers = parser.add_subparsers(
-        dest="command", required=True, help="Subcommands"
-    )
+    parser = argparse.ArgumentParser(description="Command line tool with subcommands for file operations.")
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Subcommands")
 
     # Create the parser for the "create" command
     create_parser = subparsers.add_parser("create", help="Create a new file")
     create_parser.add_argument("files", nargs="+", help="files to index")
     create_parser.add_argument("--output", "-o", help="output file name")
     create_parser.add_argument("--name", "-n", help="name for dataset", default=None)
-    create_parser.add_argument(
-        "--info", "-i", help="description for dataset", default=None
-    )
+    create_parser.add_argument("--info", "-i", help="description for dataset", default=None)
     create_parser.add_argument("--base", "-b", help="base path", default=None)
 
     # Create the parser for the "update" command
     update_parser = subparsers.add_parser("update", help="Update an existing file")
     update_parser.add_argument("filename", type=str, help="Name of the file to update")
     update_parser.add_argument("-n", "--name", default="", help="set the dataset name")
-    update_parser.add_argument(
-        "-k", "--keep", default="store_true", help="set the keep flag"
-    )
-    update_parser.add_argument(
-        "-K", "--nokeep", default="store_true", help="clear the keep flag"
-    )
+    update_parser.add_argument("-k", "--keep", default="store_true", help="set the keep flag")
+    update_parser.add_argument("-K", "--nokeep", default="store_true", help="clear the keep flag")
     update_parser.add_argument("-i", "--info", default="", help="set the dataset info")
-    update_parser.add_argument(
-        "-D", "--nodir", action="store_true", help="remove the directory from the URLs"
-    )
-    update_parser.add_argument(
-        "-d", "--dir", default="", help="set the directory on the URLs"
-    )
+    update_parser.add_argument("-D", "--nodir", action="store_true", help="remove the directory from the URLs")
+    update_parser.add_argument("-d", "--dir", default="", help="set the directory on the URLs")
     update_parser.add_argument("-b", "--base", default="", help="set the base")
-    update_parser.add_argument(
-        "-B", "--rebase", action="store_true", help="rebase the URLs"
-    )
+    update_parser.add_argument("-B", "--rebase", action="store_true", help="rebase the URLs")
 
     # Create the parser for the "info" command
     info_parser = subparsers.add_parser("info", help="Show info about an index file")
-    info_parser.add_argument(
-        "filenames", type=str, nargs="*", help="Name of the file to display"
-    )
-    info_parser.add_argument(
-        "-t", "--table", action="store_true", help="output in table format"
-    )
+    info_parser.add_argument("filenames", type=str, nargs="*", help="Name of the file to display")
+    info_parser.add_argument("-t", "--table", action="store_true", help="output in table format")
 
     # Create the parser for the "sample" command
-    sample_parser = subparsers.add_parser(
-        "sample", help="Show info about an index file"
-    )
+    sample_parser = subparsers.add_parser("sample", help="Show info about an index file")
     sample_parser.add_argument("filename", type=str, help="Name of the file to update")
-    sample_parser.add_argument(
-        "index", type=int, default=0, help="Index of the sample to show"
-    )
-    sample_parser.add_argument(
-        "-p", "--python", action="store_true", help="Show raw sample"
-    )
-    sample_parser.add_argument(
-        "-r", "--raw", action="store_true", help="Show raw sample"
-    )
-    sample_parser.add_argument(
-        "-c", "--cat", type=str, default=None, help="Output the bytes for a given key"
-    )
-    sample_parser.add_argument(
-        "-w", "--width", type=int, default=250, help="Output the bytes for a given key"
-    )
+    sample_parser.add_argument("index", type=int, default=0, help="Index of the sample to show")
+    sample_parser.add_argument("-p", "--python", action="store_true", help="Show raw sample")
+    sample_parser.add_argument("-r", "--raw", action="store_true", help="Show raw sample")
+    sample_parser.add_argument("-c", "--cat", type=str, default=None, help="Output the bytes for a given key")
+    sample_parser.add_argument("-w", "--width", type=int, default=250, help="Output the bytes for a given key")
 
     # Parse the arguments
-    args = (
-        parser.parse_args()
-    )  # Dynamically call the appropriate function based on the subcommand
+    args = parser.parse_args()  # Dynamically call the appropriate function based on the subcommand
 
     try:
         func = getattr(sys.modules[__name__], f"main_{args.command}")

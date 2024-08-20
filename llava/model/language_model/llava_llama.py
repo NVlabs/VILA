@@ -15,43 +15,33 @@
 # This file is modified from https://github.com/haotian-liu/LLaVA/
 
 
+import inspect
+import os
 from typing import List, Optional, Tuple, Union
-import os, os.path as osp
+
 import torch
-
-from transformers import (
-    LlamaForCausalLM,
-    LlamaConfig,
-    PreTrainedModel,
-    AutoConfig,
-    AutoModel,
-    GenerationConfig,
-    PretrainedConfig,
-    PreTrainedModel,
-)
-
+from transformers import AutoConfig, AutoModel, PretrainedConfig, PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from ..llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
-from ..multimodal_encoder.builder import build_vision_tower
-from ..multimodal_projector.builder import build_mm_projector
+
+from ...train.utils import calculate_loss_weight
 from ..configuration_llava import LlavaConfig
-from ..utils import get_model_config
-from .builder import build_llm_and_tokenizer
+from ..llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
 
 
 class LlavaLlamaConfig(LlavaConfig):
     model_type = "llava_llama"
+
 
 ## FIXME we will follow the convention to add a new class for CausalLM in the future
 class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
     config_class = LlavaLlamaConfig
     main_input_name = "input_embeds"
     supports_gradient_checkpointing = True
-    
+
     def __init__(self, config: LlavaLlamaConfig = None, *args, **kwargs) -> None:
         super().__init__(config)
         return self.init_vlm(config=config, *args, **kwargs)
-        
+
     @classmethod
     def from_pretrained(
         cls,
@@ -68,13 +58,32 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
         **kwargs,
     ):
         if hasattr(cls, "load_pretrained"):
-            return cls.load_pretrained(pretrained_model_name_or_path, 
-                *model_args, config=config, cache_dir=cache_dir, ignore_mismatched_sizes=ignore_mismatched_sizes, force_download=force_download, local_files_only=local_files_only, token=token, 
-                revision=revision, use_safetensors=use_safetensors, **kwargs
+            return cls.load_pretrained(
+                pretrained_model_name_or_path,
+                *model_args,
+                config=config,
+                cache_dir=cache_dir,
+                ignore_mismatched_sizes=ignore_mismatched_sizes,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                token=token,
+                revision=revision,
+                use_safetensors=use_safetensors,
+                **kwargs,
             )
-        return super(LlavaLlamaModel).from_pretrained(pretrained_model_name_or_path, 
-            *model_args, config=config, cache_dir=cache_dir, ignore_mismatched_sizes=ignore_mismatched_sizes, force_download=force_download, local_files_only=local_files_only, token=token, 
-            revision=revision, use_safetensors=use_safetensors, **kwargs)    
+        return super(LlavaLlamaModel).from_pretrained(
+            pretrained_model_name_or_path,
+            *model_args,
+            config=config,
+            cache_dir=cache_dir,
+            ignore_mismatched_sizes=ignore_mismatched_sizes,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
+            use_safetensors=use_safetensors,
+            **kwargs,
+        )
 
     def forward(
         self,
@@ -83,12 +92,14 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
+        seqlens_in_batch: Optional[torch.LongTensor] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        dpo_forward: bool = False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         self.freezed_module_patch()
         if inputs_embeds is None:
@@ -102,8 +113,10 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
             ) = self.prepare_inputs_labels_for_multimodal(
                 input_ids, position_ids, attention_mask, past_key_values, labels, images
             )
-        # Note (kentang-mit@): we have a unit test for this function.
-        if self.training:
+
+        support_packing = "seqlens_in_batch" in inspect.signature(self.llm.forward).parameters
+
+        if self.training and support_packing and not dpo_forward:
             (
                 _,
                 new_position_ids,
@@ -120,6 +133,8 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
                 inputs_embeds,
                 labels,
             )
+            if sorted_seqlens_in_batch is None:
+                sorted_seqlens_in_batch = seqlens_in_batch
             new_input_ids = None
             past_key_values = None
         else:
@@ -130,51 +145,42 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
             sorted_seqlens_in_batch = attention_mask.sum(-1).int()
             new_input_ids = input_ids
 
-        outputs = self.llm.forward(
-            input_ids=new_input_ids,
-            attention_mask=new_attention_mask,
-            position_ids=new_position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=new_inputs_embeds,
-            labels=new_labels,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-            seqlens_in_batch=sorted_seqlens_in_batch,
-        )
-        return outputs
-    
-    @torch.no_grad()
-    def generate(
-        self,
-        input_ids: Optional[torch.FloatTensor] = None,
-        images: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        **generation_kwargs,
-    ):
-        if images is not None:
-            (
-                _,
-                _,
-                attention_mask,
-                _,
-                inputs_embeds,
-                _,
-            ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids, None, attention_mask, None, None, images
+        if support_packing:
+            outputs = self.llm.forward(
+                input_ids=new_input_ids,
+                attention_mask=new_attention_mask,
+                position_ids=new_position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=new_inputs_embeds,
+                labels=new_labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                seqlens_in_batch=sorted_seqlens_in_batch,
             )
         else:
-            inputs_embeds = self.get_input_embeddings()(input_ids)
-        inputs_embeds = inputs_embeds.to(self.dtype)
-        
-        outputs = self.llm.generate(
-            inputs_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            **generation_kwargs
-        )
+            outputs = self.llm.forward(
+                input_ids=new_input_ids,
+                attention_mask=new_attention_mask,
+                position_ids=new_position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=new_inputs_embeds,
+                labels=new_labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+
+        # Loss rescale for SP & DP loss match
+        loss_weight = calculate_loss_weight(new_labels)
+        outputs.loss = outputs.loss * loss_weight
+
+        if dpo_forward:
+            return outputs.logits, new_labels
         return outputs
-        
+
 
 AutoConfig.register("llava_llama", LlavaLlamaConfig)
 AutoModel.register(LlavaLlamaConfig, LlavaLlamaModel)

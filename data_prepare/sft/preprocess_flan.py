@@ -1,8 +1,25 @@
-import os
-import pandas
-import pickle
-import torch
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
+import os
+import pickle
+
+import pandas
+import torch
 from tqdm import tqdm
 
 # download OpenORCA/FLAN to the dataset_path directory
@@ -38,13 +55,7 @@ print(min([len(x) for x in all_targets]))
 
 targeted_dataset_size = 1_000_000
 filtered_samples = []
-selected_indices = (
-    torch.linspace(0, len(all_inputs) - 1, targeted_dataset_size)
-    .int()
-    .cpu()
-    .numpy()
-    .tolist()
-)
+selected_indices = torch.linspace(0, len(all_inputs) - 1, targeted_dataset_size).int().cpu().numpy().tolist()
 cnt = 0
 for index in selected_indices:
     filtered_samples.append(
@@ -59,4 +70,3 @@ for index in selected_indices:
 
 with open(os.path.join(save_path, "text_flan_1m.pkl"), "wb") as f:
     pickle.dump(filtered_samples, f)
-

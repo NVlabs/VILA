@@ -54,9 +54,7 @@ class TarFileReader:
                 self.fnames.append(member.name)
                 self.index.append([offset, member.size])
         if self.verbose:
-            print(
-                "Done creating tar index for", self.tar_file.name, "at", self.index_file
-            )
+            print("Done creating tar index for", self.tar_file.name, "at", self.index_file)
         self.index = np.array(self.index)
         if self.index_file is not None:
             if os.path.exists(self.index_file + ".temp"):

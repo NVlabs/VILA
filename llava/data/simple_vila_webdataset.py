@@ -1,3 +1,19 @@
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import argparse
 import base64
 import getpass
@@ -54,7 +70,7 @@ def generate_and_load_tar_meta(data_path, tar_path, cache_dir, overwrite=False):
         print(f"    Generating meta: {tar_abs_metapath}")
         try:
             tar = load_tarfile(tar_abspath)
-            uuids = list(set([osp.splitext(_)[0] for _ in tar.getnames()]))
+            uuids = list({osp.splitext(_)[0] for _ in tar.getnames()})
         except tarfile.ReadError as e:
             print(f"Skipping {tar_abspath}")
             print(e)
@@ -80,10 +96,10 @@ def generate_and_load_tar_meta(data_path, tar_path, cache_dir, overwrite=False):
 
     if osp.exists(tar_abs_metapath):
         print(f"    Loading abs meta: {tar_abs_metapath}")
-        tar_meta = json.load(open(tar_abs_metapath, "r"))
+        tar_meta = json.load(open(tar_abs_metapath))
     elif osp.exists(tar_real_metapath):
         print(f"    Loading realpath meta: {tar_real_metapath}")
-        tar_meta = json.load(open(tar_real_metapath, "r"))
+        tar_meta = json.load(open(tar_real_metapath))
     else:
         return None
     return tar_meta
@@ -194,10 +210,8 @@ class VILAWebDataset(torch.utils.data.Dataset):
                 self.data_path.replace("/", "--") + f".max_shards:{max_shards_to_load}" + ".wdsmeta.json",
             )
 
-        assert osp.exists(
-            self.meta_path
-        ), f"meta path not found in [{self.meta_path}] or [{_local_meta_path}]"
-        print(f"[SimplyCoyo] Loading meta infomation {self.meta_path}", flush=True)
+        assert osp.exists(self.meta_path), f"meta path not found in [{self.meta_path}] or [{_local_meta_path}]"
+        print(f"[VILA-forked-Webdataset] Loading meta infomation {self.meta_path}", flush=True)
 
         # uuid = abs(hash(self.meta_path)) % (10 ** 8)
         import hashlib
@@ -279,14 +293,14 @@ if __name__ == "__main__":
     if args.total > 0:
         print("building meta information only")
         exit(0)
-        
+
     train_dataset = VILAWebDataset(
         data_path=args.data_path,
     )
     # print("overwrite:", args.overwrite)
     print("dataset size: ", len(train_dataset))
     print(train_dataset[0])
-    
+
     if args.test_all:
         print("iterating all dataset for data integrity.")
         train_dataset = VILAWebDataset(
@@ -317,6 +331,6 @@ if __name__ == "__main__":
                 print(f"{idx}-of-{len(dloader)}", type(data), count)
             else:
                 count += 1
-            
+
             # if idx >= 5:
             #     break

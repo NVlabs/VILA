@@ -20,7 +20,7 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --model-path $MODEL_PATH \
         --question-file ./playground/data/eval/llava-bench-in-the-wild/questions.jsonl \
         --image-folder ./playground/data/eval/llava-bench-in-the-wild/images \
-        --answers-file ./eval_output/$CKPT/llava-bench-in-the-wild/${CHUNKS}_${IDX}.jsonl \
+        --answers-file runs/eval/$CKPT/llava-bench-in-the-wild/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --temperature 0 \
@@ -29,14 +29,14 @@ done
 
 wait
 
-output_file=./eval_output/$CKPT/llava-bench-in-the-wild/answers.jsonl
+output_file=runs/eval/$CKPT/llava-bench-in-the-wild/answers.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/llava-bench-in-the-wild/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/llava-bench-in-the-wild/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
 
@@ -48,8 +48,8 @@ python llava/eval/eval_gpt_review_bench.py \
     --rule llava/eval/table/rule.json \
     --answer-list \
         playground/data/eval/llava-bench-in-the-wild/answers_gpt4.jsonl \
-        ./eval_output/$CKPT/llava-bench-in-the-wild/answers.jsonl \
+        runs/eval/$CKPT/llava-bench-in-the-wild/answers.jsonl \
     --output \
-        ./eval_output/$CKPT/llava-bench-in-the-wild/reviews.jsonl
+        runs/eval/$CKPT/llava-bench-in-the-wild/reviews.jsonl
 
-python llava/eval/summarize_gpt_review.py -f ./eval_output/$CKPT/llava-bench-in-the-wild/reviews.jsonl
+python llava/eval/summarize_gpt_review.py -f runs/eval/$CKPT/llava-bench-in-the-wild/reviews.jsonl

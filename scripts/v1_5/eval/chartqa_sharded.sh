@@ -18,9 +18,11 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
 
     CUDA_VISIBLE_DEVICES=${GPULIST[$GPU_IDX1]},${GPULIST[$GPU_IDX2]} python -m llava.eval.evaluate_vqa \
         --model-path $MODEL_PATH \
+        --generation-config '{"max_new_tokens": 100}' \
+        --dataset chartqa_test_human \
         --image-folder ./playground/data/eval/chartqa \
-        --dataset  chartqa_test_human \
-        --answers-file ./eval_output/$CKPT/chartqa/$SPLIT/answers1/${CHUNKS}_${IDX}.jsonl \
+        --data-path ./playground/data/eval/chartqa/test_human.jsonl \
+        --answers-file runs/eval/$CKPT/chartqa/$SPLIT/answers1/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --conv-mode $CONV_MODE &
@@ -28,18 +30,18 @@ done
 
 wait
 
-output_file=./eval_output/$CKPT/chartqa/$SPLIT/answers1/merge.jsonl 
+output_file=runs/eval/$CKPT/chartqa/$SPLIT/answers1/merge.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/chartqa/$SPLIT/answers1/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/chartqa/$SPLIT/answers1/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
 
-python -m llava.eval.evaluate_vqa_score --answers-file $output_file --dataset  chartqa_test_human
+python -m llava.eval.evaluate_vqa_score --answers-file $output_file --metric relaxed_accuracy
 
 
 
@@ -50,9 +52,11 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
 
     CUDA_VISIBLE_DEVICES=${GPULIST[$GPU_IDX1]},${GPULIST[$GPU_IDX2]} python -m llava.eval.evaluate_vqa \
         --model-path $MODEL_PATH \
+        --generation-config '{"max_new_tokens": 100}' \
+        --dataset chartqa_test_augmented \
+        --data-path ./playground/data/eval/chartqa/test_augmented.jsonl \
         --image-folder ./playground/data/eval/chartqa \
-        --dataset  chartqa_test_augmented \
-        --answers-file ./eval_output/$CKPT/chartqa/$SPLIT/answers2/${CHUNKS}_${IDX}.jsonl \
+        --answers-file runs/eval/$CKPT/chartqa/$SPLIT/answers2/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --conv-mode hermes-2 &
@@ -60,14 +64,14 @@ done
 
 wait
 
-output_file=./eval_output/$CKPT/chartqa/$SPLIT/answers2/merge.jsonl
+output_file=runs/eval/$CKPT/chartqa/$SPLIT/answers2/merge.jsonl
 
 # Clear out the output file if it exists.
 > "$output_file"
 
 # Loop through the indices and concatenate each file.
 for IDX in $(seq 0 $((CHUNKS-1))); do
-    cat ./eval_output/$CKPT/chartqa/$SPLIT/answers2/${CHUNKS}_${IDX}.jsonl >> "$output_file"
+    cat runs/eval/$CKPT/chartqa/$SPLIT/answers2/${CHUNKS}_${IDX}.jsonl >> "$output_file"
 done
 
-python -m llava.eval.evaluate_vqa_score --answers-file $output_file --dataset  chartqa_test_augmented
+python -m llava.eval.evaluate_vqa_score --answers-file $output_file --metric relaxed_accuracy

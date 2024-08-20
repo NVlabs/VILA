@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2023 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +19,8 @@ from itertools import product
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-
-
 import PIL
 from PIL.Image import Image
-
 from transformers.image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict
 from transformers.image_transforms import convert_to_rgb, pad, resize, to_channel_dimension_format
 from transformers.image_utils import (
@@ -49,7 +45,6 @@ from transformers.utils import (
     requires_backends,
 )
 
-
 if is_torch_available():
     import torch
     import torch.nn.functional as F
@@ -69,6 +64,7 @@ logger = logging.get_logger(__name__)
 def rank_print(s):
     rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
     print(f"[Rank {rank}] {s}")
+
 
 class ImageProcessor(BaseImageProcessor):
     r"""
@@ -132,7 +128,7 @@ class ImageProcessor(BaseImageProcessor):
         do_pad: bool = True,
         pad_size: int = None,
         pad_multiple: int = None,
-        pad_value: Optional[Union[float, List[float]]] = 0.,
+        pad_value: Optional[Union[float, List[float]]] = 0.0,
         do_convert_rgb: bool = True,
         **kwargs,
     ) -> None:
@@ -144,7 +140,9 @@ class ImageProcessor(BaseImageProcessor):
         if pad_size is not None and pad_multiple is not None:
             raise ValueError("pad_size and pad_multiple should not be set at the same time.")
 
-        pad_size = pad_size if pad_size is not None else {"height": 1024, "width": 1024} if pad_multiple is not None else None
+        pad_size = (
+            pad_size if pad_size is not None else {"height": 1024, "width": 1024} if pad_multiple is not None else None
+        )
         if do_pad:
             pad_size = get_size_dict(pad_size, default_to_square=True)
 
@@ -268,7 +266,9 @@ class ImageProcessor(BaseImageProcessor):
         size = get_size_dict(size)
         if "longest_edge" not in size:
             if "width" not in size or "height" not in size:
-                raise ValueError(f"The `size` dictionary must contain the key `longest_edge`, or `width` and `height`. Got {size.keys()}")
+                raise ValueError(
+                    f"The `size` dictionary must contain the key `longest_edge`, or `width` and `height`. Got {size.keys()}"
+                )
         input_size = get_image_size(image, channel_dim=input_data_format)
         if "longest_edge" in size:
             output_height, output_width = self._get_preprocess_shape(input_size, size["longest_edge"])
@@ -337,19 +337,19 @@ class ImageProcessor(BaseImageProcessor):
         data_format: Optional[Union[str, ChannelDimension]] = None,
         input_data_format: Optional[Union[str, ChannelDimension]] = None,
     ) -> Tuple[np.ndarray, Tuple[int, int], Tuple[int, int]]:
-        #image = to_numpy_array(image)
+        # image = to_numpy_array(image)
 
-#        import time
-#        if int(time.time()*1000) % 10 == 0:
-#            # create an PIL image of size 1x1
-#            image = PIL.Image.new('RGB', (1, 1))
+        #        import time
+        #        if int(time.time()*1000) % 10 == 0:
+        #            # create an PIL image of size 1x1
+        #            image = PIL.Image.new('RGB', (1, 1))
 
         if isinstance(image, Image):
             # PIL always uses Channels Last.
             input_data_format = ChannelDimension.LAST
 
         # PIL RGBA images are converted to RGB
-        #mode_before = image.mode
+        # mode_before = image.mode
         if do_convert_rgb:
             image = convert_to_rgb(image)
 
@@ -357,12 +357,12 @@ class ImageProcessor(BaseImageProcessor):
         image_ = image
         image = to_numpy_array(image)
 
-#        if isinstance(image_, np.ndarray):
-#            rank_print(f"preprocess image type={type(image_)} shape={image_.shape} array shape={image.shape}")
-#        elif isinstance(image_, Image):
-#            rank_print(f"preprocessimage type={type(image_)} size={image_.size} mode={image_.mode} array shape={image.shape}")
-#        else:
-#            rank_print(f"preprocess unknown image type={type(image_)} array shape={image.shape}")
+        #        if isinstance(image_, np.ndarray):
+        #            rank_print(f"preprocess image type={type(image_)} shape={image_.shape} array shape={image.shape}")
+        #        elif isinstance(image_, Image):
+        #            rank_print(f"preprocessimage type={type(image_)} size={image_.size} mode={image_.mode} array shape={image.shape}")
+        #        else:
+        #            rank_print(f"preprocess unknown image type={type(image_)} array shape={image.shape}")
 
         if len(image.shape) == 2:
             h, w = image.shape
@@ -409,7 +409,7 @@ class ImageProcessor(BaseImageProcessor):
         if data_format is not None:
             image = to_channel_dimension_format(image, data_format, input_channel_dim=input_data_format)
 
-#        rank_print(f"preprocess original_size={original_size} reshaped_input_size={reshaped_input_size} image shape={image.shape} type={type(image)}")
+        #        rank_print(f"preprocess original_size={original_size} reshaped_input_size={reshaped_input_size} image shape={image.shape} type={type(image)}")
 
         # if image is a single channel convert to rgb
         if do_convert_rgb and image.shape[0] == 1:

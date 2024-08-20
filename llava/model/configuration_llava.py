@@ -1,3 +1,19 @@
+# Copyright 2024 NVIDIA CORPORATION & AFFILIATES
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from transformers import PretrainedConfig
 
 
@@ -15,6 +31,7 @@ class LlavaConfig(PretrainedConfig):
         mm_hidden_size=None,
         image_aspect_ratio=None,
         num_video_frames=None,
+        fps=None,
         mm_vision_select_layer=None,
         mm_vision_select_feature=None,
         mm_use_im_start_end=False,
@@ -33,11 +50,12 @@ class LlavaConfig(PretrainedConfig):
         self.vision_tower_cfg = vision_tower_cfg
         self.mm_projector_cfg = mm_projector_cfg
         self.resume_path = resume_path
-        
+
         self.hidden_size = hidden_size
         self.mm_hidden_size = mm_hidden_size
         self.image_aspect_ratio = image_aspect_ratio
         self.num_video_frames = num_video_frames
+        self.fps = fps
         self.mm_vision_select_layer = mm_vision_select_layer
         self.mm_vision_select_feature = mm_vision_select_feature
         self.mm_use_im_start_end = mm_use_im_start_end

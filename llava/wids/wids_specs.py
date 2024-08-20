@@ -151,9 +151,7 @@ def resolve_dsdesc(dsdesc, *, options=None, base=None):
         if "source_url" in component:
             source_url = component["source_url"]
             component = load_remote_dsdesc_raw(source_url)
-        assert (
-            "source_url" not in component
-        ), "double indirection in dataset description"
+        assert "source_url" not in component, "double indirection in dataset description"
         assert "shardlist" in component, "no shardlist in dataset description"
         # if the component has a base, use it to rebase the shardlist
         # otherwise use the base from the source_url, if any

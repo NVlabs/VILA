@@ -9,7 +9,8 @@ n_node=${SLURM_JOB_NUM_NODES:-1}
 echo "MASTER_ADDR="$MASTER_ADDR
 echo "JobID: $SLURM_JOB_ID | Full list: $worker_list"
 
-bs=${BATCH_SIZE:-32}
+n_node=$SLURM_JOB_NUM_NODES
+bs=$((256 / n_node))
 acc_step=${ACC_STEP:-1}
 
 # for example, lmsys/vicuna-7b-v1.5
@@ -24,7 +25,7 @@ torchrun --nnodes=$n_node --nproc_per_node=8 --master_port=25001 \
     llava/train/train_mem.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $BASE_MODEL_PATH \
-    --version plain \
+    --version llama_3 \
     --data_mixture llava_1_5_mm_align \
     --vision_tower google/siglip-so400m-patch14-384 \
     --mm_vision_select_feature cls_patch \

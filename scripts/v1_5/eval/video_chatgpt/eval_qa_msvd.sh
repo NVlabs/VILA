@@ -1,5 +1,5 @@
 #!/bin/bash
-GPT_Zero_Shot_QA="./eval_output"
+GPT_Zero_Shot_QA="runs/eval"
 output_name=$1
 pred_path="${GPT_Zero_Shot_QA}/${output_name}/MSVD_Zero_Shot_QA/merge.jsonl"
 output_dir="${GPT_Zero_Shot_QA}/${output_name}/MSVD_Zero_Shot_QA/gpt4-turbo"

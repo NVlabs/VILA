@@ -9,13 +9,12 @@ n_node=${SLURM_JOB_NUM_NODES:-1}
 echo "MASTER_ADDR="$MASTER_ADDR
 echo "JobID: $SLURM_JOB_ID | Full list: $worker_list"
 
-n_nodes=1
-bs=16
+n_node=$SLURM_JOB_NUM_NODES
+bs=$((64 / n_node))
 # OUTPUT of stage 2 script
 STAGE2_PATH=$1
 # Final output checkpoint path
 OUTPUT=$2
-
 
 torchrun --nnodes=$n_node --nproc_per_node=8 --master_port=25001 \
     --master_addr $MASTER_ADDR --node_rank=$CURRENT_RANK \

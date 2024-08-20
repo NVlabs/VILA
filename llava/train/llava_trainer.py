@@ -16,18 +16,24 @@
 # This file is modified from https://github.com/haotian-liu/LLaVA/
 
 
+import json
 import os
-from typing import List, Optional
+import random
+import time
+from typing import Dict, List, Optional
 
 import torch
-from torch.utils.data import (ConcatDataset, Dataset, DistributedSampler,
-                              RandomSampler, Sampler)
+import torch.distributed as dist
+from torch import nn
+from torch.utils.data import ConcatDataset, Dataset, DistributedSampler, RandomSampler, Sampler
 from transformers import PreTrainedModel, Trainer
 from transformers.modeling_utils import unwrap_model
 from transformers.trainer import ALL_LAYERNORM_LAYERS  # ShardedDDPOption,
-from transformers.trainer import (get_parameter_names, has_length,
-                                  is_sagemaker_mp_enabled, logger)
-from collections import OrderedDict
+from transformers.trainer import get_parameter_names, has_length, is_sagemaker_mp_enabled, logger
+
+from llava.train.sequence_parallel import get_pg_manager
+from llava.trl.trainer import DPOTrainer
+
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -42,6 +48,14 @@ def maybe_zero_3(param, ignore_status=False, name=None):
     else:
         param = param.detach().cpu().clone()
     return param
+
+
+def get_peft_state_non_lora_maybe_zero_3(named_params, require_grad_only=True):
+    to_return = {k: t for k, t in named_params if "lora_" not in k}
+    if require_grad_only:
+        to_return = {k: t for k, t in to_return.items() if t.requires_grad}
+    to_return = {k: maybe_zero_3(v, ignore_status=True).cpu() for k, v in to_return.items()}
+    return to_return
 
 
 def get_mm_adapter_state_maybe_zero_3(named_params, keys_to_match):
@@ -128,11 +142,8 @@ class VILADistributedSampler(DistributedSampler):
         # NOTE: this is the total size but not per-worker
         sample_len_list=None,
         force_accumulation=True,
+        sp_degree: int = 1,
     ) -> None:
-        import math
-
-        import torch.distributed as dist
-
         if num_replicas is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
@@ -150,17 +161,33 @@ class VILADistributedSampler(DistributedSampler):
         self.rank = rank
         self.epoch = 0
         self.drop_last = True  # always True
+        self.sp_degree = max(1, sp_degree)
+        self.bs_divisible_by_sp = batch_size % self.sp_degree == 0
+
+        # Consider sequence parallelism
+        if self.sp_degree > 1:  # Sequence Parallelism is enabled
+            PROCESS_GROUP_MANAGER = get_pg_manager()
+            self.dp_rank = PROCESS_GROUP_MANAGER.dp_rank
+            self.dp_num_replicas = num_replicas // sp_degree
+            self.corresponding_ranks = list(range(self.dp_rank * self.sp_degree, (self.dp_rank + 1) * self.sp_degree))
+        else:
+            self.dp_rank = rank
+            self.dp_num_replicas = num_replicas
+
+        self.batch_size = batch_size
+        self.global_batch_size = batch_size * self.dp_num_replicas
 
         # NOTE: org_ is without drop last
         self.org_sample_len_list = self.per_replica_samples = sample_len_list
         assert sum(sample_len_list) == len(self.dataset)
 
-        self.batch_size = batch_size
-        self.global_batch_size = batch_size * num_replicas
-
         if self.drop_last:  # type: ignore[arg-type]
             self.per_replica_samples = [
-                sample_len // (self.num_replicas * batch_size) * batch_size for sample_len in self.per_replica_samples
+                sample_len
+                // (self.num_replicas * self.batch_size // self.sp_degree)
+                * self.batch_size
+                // self.sp_degree
+                for sample_len in self.per_replica_samples
             ]
             self.num_samples = sum(self.per_replica_samples)
         else:
@@ -176,15 +203,8 @@ class VILADistributedSampler(DistributedSampler):
         self.force_accumulation = force_accumulation
 
     def __iter__(self):
-        import random
 
         indices = list(range(len(self.dataset)))
-
-        indices_list = []
-        for i in range(len(self.org_sample_len_list)):
-            indices_list.append(
-                indices[sum(self.org_sample_len_list[:i]) : sum(self.org_sample_len_list[:i]) + self.total_samples[i]]
-            )
 
         # 1. split the full indices first (note: without drop last at this moment)
         indices_list = []
@@ -198,30 +218,179 @@ class VILADistributedSampler(DistributedSampler):
             self.total_size,
         )
 
-        # let's first do subsample
-        for idx, indices in enumerate(indices_list):
-            indices_list[idx] = indices[
-                self.rank * self.per_replica_samples[idx] : (self.rank + 1) * self.per_replica_samples[idx]
-            ]
+        if (
+            self.sp_degree > 1 and self.bs_divisible_by_sp
+        ):  # Sequence Parallelism is enabled, to ensure the same behavior as data parallelism
+            dp_indices_dict = {}  # {rank: indices_list}
+            all_indices_dict = {}  # {rank: all_indices}
 
-        random.seed(self.seed + self.epoch)
-        for indice in range(len(indices_list)):
-            random.shuffle(indices_list[indice])
+            for i in self.corresponding_ranks:
+                dp_indices_list = []
+                for idx, indices in enumerate(indices_list):
+                    dp_indices_list.append(
+                        indices[i * self.per_replica_samples[idx] : (i + 1) * self.per_replica_samples[idx]]
+                    )
 
-        indices_list = sorted(indices_list, key=lambda x: -len(x))
-        all_indices = [-1] * self.num_samples
-        indices_available = list(range(self.num_samples))
-        for indice in indices_list:
-            original_indices = range(len(indice))
-            transformed_indices = [idx * len(indices_available) // len(indice) for idx in original_indices]
-            mapped_indices = [indices_available[idx] for idx in transformed_indices]
-            # update indices_available
-            for idx in reversed(transformed_indices):
-                del indices_available[idx]
-            for i, idx in enumerate(mapped_indices):
-                all_indices[idx] = indice[i]
+                random.seed(self.seed + self.epoch)
+                for indice in range(len(dp_indices_list)):
+                    random.shuffle(dp_indices_list[indice])
+
+                dp_indices_dict[i] = dp_indices_list.copy()
+
+            for rank, dp_indices_list in dp_indices_dict.items():
+                dp_indices_list = sorted(dp_indices_list, key=lambda x: -len(x))
+                dp_all_indices = [-1] * self.num_samples
+                indices_available = list(range(self.num_samples))
+
+                for indice in dp_indices_list:
+
+                    original_indices = range(len(indice))
+                    transformed_indices = [idx * len(indices_available) // len(indice) for idx in original_indices]
+
+                    mapped_indices = [indices_available[idx] for idx in transformed_indices]
+                    # update indices_available
+                    for idx in reversed(transformed_indices):
+                        del indices_available[idx]
+                    for i, idx in enumerate(mapped_indices):
+                        dp_all_indices[idx] = indice[i]
+
+                all_indices_dict[rank] = dp_all_indices
+
+            # Interleaving Merge
+            merged_indices = []
+            interleaved_indices = []
+            for item_idx in range(len(all_indices_dict[self.corresponding_ranks[0]])):
+                for rank in self.corresponding_ranks:
+                    interleaved_indices.append(all_indices_dict[rank][item_idx])
+            merged_indices.append(interleaved_indices)
+
+            all_indices = merged_indices[0]
+        else:
+            # let's first do subsample
+            for idx, indices in enumerate(indices_list):
+                indices_list[idx] = indices[
+                    self.rank * self.per_replica_samples[idx] : (self.rank + 1) * self.per_replica_samples[idx]
+                ]
+
+            random.seed(self.seed + self.epoch)
+            for indice in range(len(indices_list)):
+                random.shuffle(indices_list[indice])
+
+            indices_list = sorted(indices_list, key=lambda x: -len(x))
+            all_indices = [-1] * self.num_samples
+            indices_available = list(range(self.num_samples))
+
+            for indice in indices_list:
+
+                original_indices = range(len(indice))
+                transformed_indices = [idx * len(indices_available) // len(indice) for idx in original_indices]
+
+                mapped_indices = [indices_available[idx] for idx in transformed_indices]
+                # update indices_available
+                for idx in reversed(transformed_indices):
+                    del indices_available[idx]
+                for i, idx in enumerate(mapped_indices):
+                    all_indices[idx] = indice[i]
         assert -1 not in all_indices
+        return iter(all_indices)
 
+
+class LongVILADistributedSampler(VILADistributedSampler):
+    """This class is implemented by Yukang Chen."""
+
+    def __iter__(self):
+        def batch_shuffle(indices):
+            batch_indices = list(range(indices[0] // self.batch_size, indices[-1] // self.batch_size + 1))
+            random.shuffle(batch_indices)
+            indices_shuffled = [
+                batch_indices[i // self.batch_size] * self.batch_size + index % self.batch_size
+                for i, index in enumerate(indices)
+            ]
+            return indices_shuffled
+
+        indices = list(range(len(self.dataset)))
+
+        # 1. split the full indices first (note: without drop last at this moment)
+        indices_list = []
+        for i in range(len(self.org_sample_len_list)):
+            indices_list.append(
+                indices[sum(self.org_sample_len_list[:i]) : sum(self.org_sample_len_list[:i]) + self.total_samples[i]]
+            )
+
+        assert sum([len(indices) for indices in indices_list]) == self.total_size, (
+            sum([len(indices) for indices in indices_list]),
+            self.total_size,
+        )
+
+        if self.sp_degree > 1:  # Sequence Parallelism is enabled, to ensure the same behavior as data parallelism
+            dp_indices_dict = {}  # {rank: indices_list}
+            all_indices_dict = {}  # {rank: all_indices}
+
+            for i in self.corresponding_ranks:
+                dp_indices_list = []
+                for idx, indices in enumerate(indices_list):
+                    dp_indices_list.append(
+                        indices[i * self.per_replica_samples[idx] : (i + 1) * self.per_replica_samples[idx]]
+                    )
+
+                random.seed(self.seed + self.epoch)
+                for indice in range(len(dp_indices_list)):
+                    batch_shuffle(dp_indices_list[indice])
+
+                dp_indices_dict[i] = dp_indices_list.copy()
+
+            for rank, dp_indices_list in dp_indices_dict.items():
+                dp_indices_list = sorted(dp_indices_list, key=lambda x: -len(x))
+                dp_all_indices = [-1] * self.num_samples
+                indices_available = list(range(self.num_samples))
+
+                for indice in dp_indices_list:
+
+                    original_indices = range(len(indice))
+                    transformed_indices = [idx * len(indices_available) // len(indice) for idx in original_indices]
+
+                    mapped_indices = [indices_available[idx] for idx in transformed_indices]
+                    # update indices_available
+                    for idx in reversed(transformed_indices):
+                        del indices_available[idx]
+                    for i, idx in enumerate(mapped_indices):
+                        dp_all_indices[idx] = indice[i]
+
+                all_indices_dict[rank] = dp_all_indices
+
+            # Interleaving Merge
+            merged_indices = []
+            interleaved_indices = []
+            for item_idx in range(len(all_indices_dict[self.corresponding_ranks[0]])):
+                for rank in self.corresponding_ranks:
+                    interleaved_indices.append(all_indices_dict[rank][item_idx])
+            merged_indices.append(interleaved_indices)
+
+            all_indices = merged_indices[0]
+        else:
+            # let's first do subsample
+            for idx, indices in enumerate(indices_list):
+                indices_list[idx] = indices[
+                    self.rank * self.per_replica_samples[idx] : (self.rank + 1) * self.per_replica_samples[idx]
+                ]
+
+            random.seed(self.seed + self.epoch)
+            for indice in range(len(indices_list)):
+                batch_shuffle(indices_list[indice])
+
+            indices_list = sorted(indices_list, key=lambda x: -len(x))
+            all_indices = [-1] * self.num_samples
+            indices_available = list(range(self.num_samples))
+            for indice in indices_list:
+                original_indices = range(len(indice))
+                transformed_indices = [idx * len(indices_available) // len(indice) for idx in original_indices]
+                mapped_indices = [indices_available[idx] for idx in transformed_indices]
+                # update indices_available
+                for idx in reversed(transformed_indices):
+                    del indices_available[idx]
+                for i, idx in enumerate(mapped_indices):
+                    all_indices[idx] = indice[i]
+        assert -1 not in all_indices
         return iter(all_indices)
 
 
@@ -263,7 +432,7 @@ class LengthGroupedSampler(Sampler):
         return iter(indices)
 
 
-class LLaVATrainer(Trainer):
+class VILADPOTrainer(DPOTrainer):
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None
@@ -271,30 +440,17 @@ class LLaVATrainer(Trainer):
         # Always using Jason's sampler.
         sample_len_list = self.args.sample_lens
         seed = self.args.data_seed if self.args.data_seed is not None else self.args.seed
+        num_replicas = self.args.world_size
+        rank = self.args.process_index
         return VILADistributedSampler(
             self.train_dataset,
-            num_replicas=self.args.world_size,
-            rank=self.args.process_index,
+            num_replicas=num_replicas,
+            rank=rank,
             seed=seed,
             batch_size=self.args.train_batch_size,
             sample_len_list=sample_len_list,
+            sp_degree=self.args.seq_parallel_size,
         )
-
-        if self.args.group_by_modality_length:
-            if not isinstance(self.train_dataset, ConcatDataset):
-                lengths = self.train_dataset.modality_lengths
-            else:
-                lengths = []
-                for d in self.train_dataset.datasets:
-                    lengths += d.modality_lengths
-            return LengthGroupedSampler(
-                self.args.train_batch_size,
-                world_size=self.args.world_size * self.args.gradient_accumulation_steps,
-                lengths=lengths,
-                group_by_modality=True,
-            )
-        else:
-            return super()._get_train_sampler()
 
     def _get_eval_sampler(self, eval_dataset: Dataset) -> Optional[torch.utils.data.Sampler]:
         if self.eval_dataset is None or not has_length(self.eval_dataset):
@@ -411,7 +567,6 @@ class LLaVATrainer(Trainer):
 
         return self.optimizer
 
-
     def save_model(self, output_dir: Optional[str], _internal_call: bool):
         ## save tuned model separately
         if self.is_deepspeed_enabled:
@@ -422,3 +577,212 @@ class LLaVATrainer(Trainer):
 
         if self.args.should_save:
             return self.model.save_pretrained(output_dir, state_dict=state_dict)
+
+
+class LLaVATrainer(Trainer):
+    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
+        if self.train_dataset is None or not has_length(self.train_dataset):
+            return None
+
+        # Always using Jason's sampler.
+        sample_len_list = self.args.sample_lens
+        seed = self.args.data_seed if self.args.data_seed is not None else self.args.seed
+        num_replicas = self.args.world_size
+        rank = self.args.process_index
+        longvila_sampler = self.args.longvila_sampler
+        sampler = LongVILADistributedSampler if longvila_sampler else VILADistributedSampler
+
+        # # Consider sequence parallelism
+        # sp_degree = self.args.seq_parallel_size
+        # if sp_degree > 1:  # Sequence Parallelism is enabled
+        #     num_replicas = num_replicas // sp_degree
+        #     PROCESS_GROUP_MANAGER = get_pg_manager()
+        #     rank = PROCESS_GROUP_MANAGER.dp_rank
+        #     # rank = dist.get_rank() // sp_degree
+
+        return sampler(
+            self.train_dataset,
+            num_replicas=num_replicas,
+            rank=rank,
+            seed=seed,
+            batch_size=self.args.train_batch_size,
+            sample_len_list=sample_len_list,
+            sp_degree=self.args.seq_parallel_size,
+        )
+
+        # if self.args.group_by_modality_length:
+        #     if not isinstance(self.train_dataset, ConcatDataset):
+        #         lengths = self.train_dataset.modality_lengths
+        #     else:
+        #         lengths = []
+        #         for d in self.train_dataset.datasets:
+        #             lengths += d.modality_lengths
+        #     return LengthGroupedSampler(
+        #         self.args.train_batch_size,
+        #         world_size=self.args.world_size * self.args.gradient_accumulation_steps,
+        #         lengths=lengths,
+        #         group_by_modality=True,
+        #     )
+        # else:
+        #     return super()._get_train_sampler()
+
+    def _get_eval_sampler(self, eval_dataset: Dataset) -> Optional[torch.utils.data.Sampler]:
+        if self.eval_dataset is None or not has_length(self.eval_dataset):
+            return None
+
+        # Always using Jason's sampler.
+        sample_len_list = self.args.eval_sample_lens
+        seed = self.args.data_seed if self.args.data_seed is not None else self.args.seed
+        return VILADistributedSampler(
+            eval_dataset,
+            num_replicas=self.args.world_size,
+            rank=self.args.process_index,
+            seed=seed,
+            batch_size=self.args.eval_batch_size,
+            sample_len_list=sample_len_list,
+        )
+
+    def create_optimizer(self):
+        """
+        Setup the optimizer.
+
+        We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
+        Trainer's init through `optimizers`, or subclass and override this method in a subclass.
+        """
+        if is_sagemaker_mp_enabled():
+            return super().create_optimizer()
+        # if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+        #     return super().create_optimizer()
+
+        opt_model = self.model
+
+        if self.optimizer is None:
+            decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
+            decay_parameters = [name for name in decay_parameters if "bias" not in name]
+            if self.args.mm_projector_lr is not None:
+                projector_parameters = [name for name, _ in opt_model.named_parameters() if "mm_projector" in name]
+                optimizer_grouped_parameters = [
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n not in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n not in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                        "lr": self.args.mm_projector_lr,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                        "lr": self.args.mm_projector_lr,
+                    },
+                ]
+            else:
+                optimizer_grouped_parameters = [
+                    {
+                        "params": [
+                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                    },
+                ]
+
+            optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
+
+            if 0:  # self.sharded_ddp == ShardedDDPOption.SIMPLE:
+                self.optimizer = OSS(
+                    params=optimizer_grouped_parameters,
+                    optim=optimizer_cls,
+                    **optimizer_kwargs,
+                )
+            else:
+                self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+                if optimizer_cls.__name__ == "Adam8bit":
+                    import bitsandbytes
+
+                    manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
+
+                    skipped = 0
+                    for module in opt_model.modules():
+                        if isinstance(module, nn.Embedding):
+                            skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
+                            logger.info(f"skipped {module}: {skipped/2**20}M params")
+                            manager.register_module_override(module, "weight", {"optim_bits": 32})
+                            logger.debug(f"bitsandbytes: will optimize {module} in fp32")
+                    logger.info(f"skipped: {skipped/2**20}M params")
+
+        return self.optimizer
+
+    def save_model(self, output_dir: Optional[str], _internal_call: bool):
+        ## save tuned model separately
+        if self.is_deepspeed_enabled:
+            state_dict = self.accelerator.get_state_dict(self.deepspeed)
+        else:
+            # TODO(ligeng): fix save_model for multi-node training on large models (e.g., Llama-70b)
+            state_dict = self.model.state_dict()
+
+        if self.args.lora_enable:
+            non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(self.model.named_parameters())
+            os.makedirs(output_dir, exist_ok=True)
+            torch.save(
+                non_lora_state_dict,
+                os.path.join(output_dir, "non_lora_trainables.bin"),
+            )
+
+        if self.args.should_save:
+            return self.model.save_pretrained(output_dir, state_dict=state_dict)
+
+    def log(self, logs: Dict[str, float]) -> None:
+        """
+        Log `logs` on the various objects watching training.
+
+        Subclass and override this method to inject custom behavior.
+
+        Args:
+            logs (`Dict[str, float]`):
+                The values to log.
+        """
+        if self.state.epoch is not None:
+            logs["epoch"] = round(self.state.epoch, 2)
+        if self.args.include_num_input_tokens_seen:
+            logs["num_input_tokens_seen"] = self.state.num_input_tokens_seen
+
+        output = {**logs, **{"step": self.state.global_step}}
+        self.state.log_history.append(output)
+
+        if self.args.debug_e2e and self.control.should_training_stop:
+
+            # Only save log history if the current process is rank 0
+            if dist.get_rank() == 0:
+                with open(f"{self.args.output_dir}/log_history.json", "w") as f:
+                    json.dump(self.state.log_history, f, indent=4)
+
+        self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)

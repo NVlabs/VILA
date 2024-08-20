@@ -78,7 +78,8 @@ default_cmds = {
     "s3": "aws s3 cp {url} {local}",
 }
 
-#TODO(ligeng): change HTTPS download to python requests library
+# TODO(ligeng): change HTTPS download to python requests library
+
 
 def download_file_no_log(remote, local, handlers=default_cmds):
     """Download a file from a remote url to a local path.
@@ -140,9 +141,9 @@ def download_and_open(remote, local, mode="rb", handlers=default_cmds, verbose=F
                 if verbose:
                     print("using cached", local, file=sys.stderr)
             result = open(local, mode)
-        
+
         # input()
-        
+
         if open_objects is not None:
             for k, v in list(open_objects.items()):
                 if v.closed:
