@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # DeepSpeed Team
+
+# This file is modified from https://github.com/feifeibear/long-context-attention
+# Implementation refers to USP Paper: https://arxiv.org/abs/2405.07719
+
 import copy
 from typing import Any, Tuple
 
