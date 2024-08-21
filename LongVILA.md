@@ -61,7 +61,7 @@ Please refer to `scripts/v1_5/eval/needle.sh`, `scripts/v1_5/eval/video_chatgpt/
       title={LongVILA: Scaling Long-Context Visual Language Models for Long Videos},
       author={Fuzhao Xue and Yukang Chen and Dacheng Li and Qinghao Hu and Ligeng Zhu and Xiuyu Li and Yunhao Fang and Haotian Tang and Shang Yang and Zhijian Liu and Yihui He and Hongxu Yin and Pavlo Molchanov and Jan Kautz and Linxi Fan and Yuke Zhu and Yao Lu and Song Han},
       year={2024},
-      eprint={},
+      eprint={2408.10188},
       archivePrefix={arXiv},
       primaryClass={cs.CV}
 }
