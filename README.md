@@ -35,7 +35,7 @@ VILA is a visual language model (VLM) pretrained with interleaved image-text dat
 | VILA1.5-3B-AWQ                   | int4  | 80.0  | 61.1 | 53.8   | 67.8  | 60.4  | 85.9 | 1437.34 | 63.3 | 51.4   | 59.8 | 66.6   | 32.7       | 31.1        | 75.0        | 37.3   | 59.9    |
 | VILA1.5-3B-S2                    | fp16  | 79.8  | 61.4 | 61.3   | 69.6  | 63.4  | 85.3 | 1431.65 | 62.8 | 52.2   | 60.0 | 66.4   | 32.8       | 31.3        | 76.7        | 38.6   | 60.9    |
 | VILA1.5-3B-S2-AWQ                | int4  | 79.4  | 61.3 | 62.3   | 69.2  | 63.0  | 85.8 | 1417.06 | 61.6 | 51.5   | 59.1 | 65.7   | 33.4       | 30.4        | 77.1        | 36.7   | 60.5    |
-| Llama-3-VILA1.5-8B               | fp16  | 80.9  | 61.9 | 58.7   | 79.9  | 66.3  | 84.4 | 1577.01 | 72.3 | 66.2   | 64.2 | 71.4   | 36.9       | 36.0        | 80.0        | 38.3   | 65.1    |
+| Llama-3-VILA1.5-8B               | fp16  | 83.0  | 63.5 | 63.2   | 82.0  | 68.5  | 85.6 | 1634.91 | 75.3 | 69.9   | 66.4 | 73.8   | 38.6       | 32.7        | 71.9        | 43.2   | 66.6    |
 | Llama-3-VILA1.5-8B-AWQ           | int4  | 80.3  | 61.7 | 59.3   | 79.0  | 65.4  | 82.9 | 1593.65 | 71.0 | 64.9   | 64.0 | 71.1   | 36.0       | 36.1        | 79.0        | 37.2   | 64.5    |
 | VILA1.5-13B                      | fp16  | 82.8  | 64.3 | 62.6   | 80.1  | 65.0  | 86.3 | 1569.55 | 74.9 | 66.3   | 65.1 | 72.6   | 37.9       | 33.6        | 80.8        | 44.3   | 66.3    |
 | VILA1.5-13B-AWQ                  | int4  | 82.7  | 64.5 | 63.3   | 79.7  | 64.7  | 86.7 | 1531.35 | 74.7 | 66.7   | 65.1 | 72.6   | 37.8       | 34.0        | 81.9        | 46.4   | 66.5    |
@@ -195,7 +195,7 @@ Llama-3-VILA1.5-8B inference:
 
 ```bash
 python -W ignore llava/eval/run_vila.py \
-    --model-path Efficient-Large-Model/Llama-3-VILA1.5-8b \
+    --model-path Efficient-Large-Model/Llama-3-VILA1.5-8b-Fix \
     --conv-mode llama_3 \
     --query "<image>\n Please describe the traffic condition." \
     --image-file "av.png"
@@ -296,7 +296,7 @@ print(response.choices[0].message.content)
 
 ## Checkpoints
 
-We release [VILA1.5-3B](https://hf.co/Efficient-Large-Model/VILA1.5-3b), [VILA1.5-3B-S2](https://hf.co/Efficient-Large-Model/VILA1.5-3b-s2), [Llama-3-VILA1.5-8B](https://hf.co/Efficient-Large-Model/Llama-3-VILA1.5-8b), [VILA1.5-13B](https://hf.co/Efficient-Large-Model/VILA1.5-13b), [VILA1.5-40B](https://hf.co/Efficient-Large-Model/VILA1.5-40b) and the 4-bit [AWQ](https://arxiv.org/abs/2306.00978)-quantized models [VILA1.5-3B-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-3b-AWQ), [VILA1.5-3B-S2-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-3b-s2-AWQ), [Llama-3-VILA1.5-8B-AWQ](https://hf.co/Efficient-Large-Model/Llama-3-VILA1.5-8b-AWQ), [VILA1.5-13B-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-13b-AWQ), [VILA1.5-40B-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-40b-AWQ).
+We release [VILA1.5-3B](https://hf.co/Efficient-Large-Model/VILA1.5-3b), [VILA1.5-3B-S2](https://hf.co/Efficient-Large-Model/VILA1.5-3b-s2), [Llama-3-VILA1.5-8B](https://hf.co/Efficient-Large-Model/Llama-3-VILA1.5-8B-Fix), [VILA1.5-13B](https://hf.co/Efficient-Large-Model/VILA1.5-13b), [VILA1.5-40B](https://hf.co/Efficient-Large-Model/VILA1.5-40b) and the 4-bit [AWQ](https://arxiv.org/abs/2306.00978)-quantized models [VILA1.5-3B-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-3b-AWQ), [VILA1.5-3B-S2-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-3b-s2-AWQ), [Llama-3-VILA1.5-8B-AWQ](https://hf.co/Efficient-Large-Model/Llama-3-VILA1.5-8B-Fix-AWQ), [VILA1.5-13B-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-13b-AWQ), [VILA1.5-40B-AWQ](https://hf.co/Efficient-Large-Model/VILA1.5-40b-AWQ).
 
 ## 🔒 License
 
