@@ -315,7 +315,7 @@ We release [VILA1.5-3B](https://hf.co/Efficient-Large-Model/VILA1.5-3b), [VILA1.
 [Wei Ping](https://scholar.google.com/citations?user=6gKEYRgAAAAJ&hl=en): Nvidia |   [Pavlo Molchanov](https://www.pmolchanov.com/): Nvidia |  [Andrew Tao](https://scholar.google.com/citations?user=Wel9l1wAAAAJ&hl=en): Nvidia |
 [Haotian Tang](http://kentang.net/): MIT |  [Shang Yang](https://ys-2020.github.io/): MIT |  [Ligeng Zhu](https://lzhu.me/): Nvidia, MIT |
 [Wei-Chen Wang](https://weichenwang.me/): MIT |  [Fuzhao Xue](https://xuefuzhao.github.io/): Nvidia, NUS |  [Yunhao Fang](https://seerkfang.github.io/): Nvidia, UCSD |
-[Yukang Chen](https://yukangchen.com/): Nvidia, CUHK | [Zhuoyang Zhang](https://openreview.net/profile?id=~Zhuoyang_Zhang1): Nvidia, Tsinghua Univ. | [Yue Shen](https://www.linkedin.com/in/yue-james-shen/): Nvidia |
+[Yukang Chen](https://yukangchen.com/): Nvidia | [Zhuoyang Zhang](https://openreview.net/profile?id=~Zhuoyang_Zhang1): Nvidia | [Yue Shen](https://www.linkedin.com/in/yue-james-shen/): Nvidia |
 [Wei-Ming Chen](https://scholar.google.com/citations?user=6xFvyJwAAAAJ&hl=en): Nvidia |  [Huizi Mao](https://scholar.google.com/citations?user=r5WezOYAAAAJ&hl=zh-CN): Nvidia | [Baifeng Shi](https://bfshi.github.io/): Nvidia, UC Berkeley |
 [Jan Kautz](https://jankautz.com/): Nvidia | [Mohammad Shoeybi](https://scholar.google.com/citations?user=62ElavIAAAAJ&hl=en): Nvidia | [Song Han](http://songhan.mit.edu/): Nvidia, MIT
 
