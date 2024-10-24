@@ -1,21 +1,24 @@
 import argparse
 import base64
+import json
 import os
 import re
 import time
 import uuid
 from contextlib import asynccontextmanager
 from io import BytesIO
+from threading import Thread
 from typing import List, Literal, Optional, Union, get_args
 
 import requests
 import torch
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image as PILImage
 from PIL.Image import Image
 from pydantic import BaseModel
+from transformers.generation.streamers import TextIteratorStreamer
 
 from llava.constants import (
     DEFAULT_IM_END_TOKEN,
@@ -180,6 +183,10 @@ async def chat_completions(request: ChatCompletionRequest):
                 prompt = message.content
                 conv.append_message(assistant_role, prompt)
 
+        # add a last "assistant" message to complete the prompt
+        if conv.sep_style == SeparatorStyle.LLAMA_3:
+            conv.append_message(assistant_role, "")
+
         prompt_text = conv.get_prompt()
         print("Prompt input: ", prompt_text)
 
@@ -201,33 +208,80 @@ async def chat_completions(request: ChatCompletionRequest):
         stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
         with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids,
-                images=images_input,
-                do_sample=True if temperature > 0 else False,
-                temperature=temperature,
-                top_p=top_p,
-                num_beams=num_beams,
-                max_new_tokens=max_tokens,
-                use_cache=use_cache,
-                stopping_criteria=[stopping_criteria],
-            )
+            if request.stream:
+                streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, timeout=20.0)
+                thread = Thread(
+                    target=model.generate,
+                    kwargs=dict(
+                        input_ids=input_ids,
+                        images=images_input,
+                        do_sample=True if temperature > 0 else False,
+                        temperature=temperature,
+                        top_p=top_p,
+                        max_new_tokens=max_tokens,
+                        streamer=streamer,
+                        use_cache=use_cache,
+                        stopping_criteria=[stopping_criteria],
+                    ),
+                )
+                thread.start()
 
-        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
-        outputs = outputs.strip()
-        if outputs.endswith(stop_str):
-            outputs = outputs[: -len(stop_str)]
-        outputs = outputs.strip()
-        print("\nAssistant: ", outputs)
+                def chunk_generator():
+                    prepend_space = False
+                    should_stop = False
+                    chunk_id = 0
+                    for new_text in streamer:
+                        if new_text == " ":
+                            prepend_space = True
+                            continue
+                        if new_text.endswith(stop_str):
+                            new_text = new_text[: -len(stop_str)].strip()
+                            prepend_space = False
+                            should_stop = True
+                        elif prepend_space:
+                            new_text = " " + new_text
+                            prepend_space = False
+                        if len(new_text):
+                            chunk = {
+                                "id": chunk_id,
+                                "object": "chat.completion.chunk",
+                                "created": time.time(),
+                                "model": request.model,
+                                "choices": [{"delta": {"content": new_text}}],
+                            }
+                            yield f"data: {json.dumps(chunk)}\n\n"
+                    yield "data: [DONE]\n\n"
 
-        resp_content = [TextContent(type="text", text=outputs)]
-        return {
-            "id": uuid.uuid4().hex,
-            "object": "chat.completion",
-            "created": time.time(),
-            "model": request.model,
-            "choices": [{"message": ChatMessage(role="assistant", content=resp_content)}],
-        }
+                return StreamingResponse(chunk_generator())
+
+            else:
+                output_ids = model.generate(
+                    input_ids,
+                    images=images_input,
+                    do_sample=True if temperature > 0 else False,
+                    temperature=temperature,
+                    top_p=top_p,
+                    num_beams=num_beams,
+                    max_new_tokens=max_tokens,
+                    use_cache=use_cache,
+                    stopping_criteria=[stopping_criteria],
+                )
+
+                outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
+                outputs = outputs.strip()
+                if outputs.endswith(stop_str):
+                    outputs = outputs[: -len(stop_str)]
+                outputs = outputs.strip()
+                print("\nAssistant: ", outputs)
+
+                resp_content = [TextContent(type="text", text=outputs)]
+                return {
+                    "id": uuid.uuid4().hex,
+                    "object": "chat.completion",
+                    "created": time.time(),
+                    "model": request.model,
+                    "choices": [{"message": ChatMessage(role="assistant", content=resp_content)}],
+                }
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -251,4 +305,4 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=workers)
     app.args = parser.parse_args()
 
-    uvicorn.run(app, host=host, port=port, workers=workers)
+    uvicorn.run(app, host=app.args.host, port=app.args.port, workers=app.args.workers)
