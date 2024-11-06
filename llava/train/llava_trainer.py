@@ -205,6 +205,8 @@ class VILADistributedSampler(DistributedSampler):
     def __iter__(self):
 
         indices = list(range(len(self.dataset)))
+        random.seed(self.seed + self.epoch)
+        random.shuffle(indices) # if we don't shuffle here, the final ( len(self.dataset) - self.total_size ) samples will be dropped forever
 
         # 1. split the full indices first (note: without drop last at this moment)
         indices_list = []
