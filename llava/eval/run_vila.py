@@ -65,7 +65,7 @@ def eval_model(args):
         images, num_frames = opencv_extract_frames(video_file, args.num_video_frames)
 
     model_name = get_model_name_from_path(args.model_path)
-    tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, model_name, args.model_base)
+    tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, model_name=model_name, model_base=args.model_base)
 
     qs = args.query
     image_token_se = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN
