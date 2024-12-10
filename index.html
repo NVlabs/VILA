@@ -697,7 +697,8 @@
     <!--    </div>-->
     <div class="hero">
         <h2>
-        <img src="asset/NVILA.png" alt="Logo" style="width: 160px; height: auto; margin-right: 3px;">: Efficient Frontier Visual Language Models
+            <img src="asset/NVILA.png" alt="Logo" style="width: 160px; height: auto; margin-right: 3px;">: Efficient
+            Frontier Visual Language Models
         </h2>
         <p>Enable large model training with limited resources</p>
 
@@ -996,7 +997,7 @@
             <div class="caption-container">
                 <p id="caption">NVILA Examples</p>
             </div>
-            
+
             <br>
             <!-- Thumbnail images -->
             <div class="row">
@@ -1027,7 +1028,14 @@
         <div class="description-content">
             <h2>NVILA's core design concept</h2>
             <p>
-                In this paper, we introduce <strong>NVILA</strong>, a family of open VLMs designed to optimize both efficiency and accuracy. Building on VILA, we improve its model architecture by first scaling up the spatial and temporal resolution, followed by compressing visual tokens. "Scaling" preserves more details from visual inputs, raising the accuracy upper bound, while "compression" squeezes visual information to fewer tokens, improving computational efficiency. This "<em>scale-then-compress</em>" strategy allows NVILA to process high-resolution images and long videos both effectively and efficiently. In addition, we conduct a systematic study to optimize the efficiency of NVILA throughout its entire lifecycle, including training, fine-tuning, and deployment.
+                In this paper, we introduce <strong>NVILA</strong>, a family of open VLMs designed to optimize both
+                efficiency and accuracy. Building on VILA, we improve its model architecture by first scaling up the
+                spatial and temporal resolution, followed by compressing visual tokens. "Scaling" preserves more details
+                from visual inputs, raising the accuracy upper bound, while "compression" squeezes visual information to
+                fewer tokens, improving computational efficiency. This "<em>scale-then-compress</em>" strategy allows
+                NVILA to process high-resolution images and long videos both effectively and efficiently. In addition,
+                we conduct a systematic study to optimize the efficiency of NVILA throughout its entire lifecycle,
+                including training, fine-tuning, and deployment.
             </p>
         </div>
 
@@ -1035,13 +1043,26 @@
         <div class="description-content">
             <h2> Spatial "scale-then-compress"</h2>
             <p>
-                For spatial scaling, we increase the image resolution of the vision encoder to 896×896. However, uniformly applying high resolution is inefficient for smaller images. To address this, we use S2 to extract multi-scale high-resolution features with image tiling. S2 resizes the image into multiple scales (e.g., 448², 896², 1344²), splits each scale into 448² tiles, processes each tile individually, and stitches the tiles back together. Feature maps from different scales are then interpolated and concatenated.
+                For spatial scaling, we increase the image resolution of the vision encoder to 896×896. However,
+                uniformly applying high resolution is inefficient for smaller images. To address this, we use S2 to
+                extract multi-scale high-resolution features with image tiling. S2 resizes the image into multiple
+                scales (e.g., 448², 896², 1344²), splits each scale into 448² tiles, processes each tile individually,
+                and stitches the tiles back together. Feature maps from different scales are then interpolated and
+                concatenated.
 
-                S2 resizes images into squares, causing distortion for images with varying aspect ratios. To address this, we propose DynS2, which maintains the original aspect ratio at the largest scale. DynS2 adjusts image dimensions to the closest size divisible by 448² tiles, processes the tiles, and concatenates feature maps from all scales.
+                S2 resizes images into squares, causing distortion for images with varying aspect ratios. To address
+                this, we propose DynS2, which maintains the original aspect ratio at the largest scale. DynS2 adjusts
+                image dimensions to the closest size divisible by 448² tiles, processes the tiles, and concatenates
+                feature maps from all scales.
 
-                With DynS2, the model achieves up to 30% accuracy improvements on text-heavy benchmarks. To compress spatial tokens, we use a 2×2 spatial-to-channel (STC) reshape, reducing token count by a factor of 4 without sacrificing accuracy. More aggressive reductions cause performance drops, so we introduce an additional visual encoder pre-training stage to recover accuracy loss, achieving a 2.4× speedup in training and inference.
+                With DynS2, the model achieves up to 30% accuracy improvements on text-heavy benchmarks. To compress
+                spatial tokens, we use a 2×2 spatial-to-channel (STC) reshape, reducing token count by a factor of 4
+                without sacrificing accuracy. More aggressive reductions cause performance drops, so we introduce an
+                additional visual encoder pre-training stage to recover accuracy loss, achieving a 2.4× speedup in
+                training and inference.
 
-                Alternative designs like TokenLearner and Perceiver Resampler do not outperform the simple STC design with the same token reduction ratio.
+                Alternative designs like TokenLearner and Perceiver Resampler do not outperform the simple STC design
+                with the same token reduction ratio.
             </p>
         </div>
 
@@ -1052,30 +1073,50 @@
         <div class="description-content">
             <h2> Temporal "scale-then-compress"</h2>
             <p>
-                For temporal scaling, we increase the number of uniformly sampled frames from the input video. Following previous methods, we train the model with additional video-supervised fine-tuning (SFT) to extend its capability to process more frames. Extending the number of frames from 8 to 32 can increase the model's accuracy on Video-MME by more than 5%. However, this also increases the number of visual tokens by 4×.
+                For temporal scaling, we increase the number of uniformly sampled frames from the input video. Following
+                previous methods, we train the model with additional video-supervised fine-tuning (SFT) to extend its
+                capability to process more frames. Extending the number of frames from 8 to 32 can increase the model's
+                accuracy on Video-MME by more than 5%. However, this also increases the number of visual tokens by 4×.
 
-                Similar to spatial token compression, we reduce these visual tokens using temporal averaging, which partitions the frames into groups and then temporally pools visual tokens within each group. This reduces temporal redundancy while retaining important spatiotemporal information. Compressing the visual tokens by 4× leads to an acceptable accuracy drop. Compared to the original baseline with the same number of tokens, the scaled and then expanded result costs almost the same but has much higher accuracy. This approach further scales the number of frames and the compression ratio, leading to a state-of-the-art 7B model on this benchmark.
+                Similar to spatial token compression, we reduce these visual tokens using temporal averaging, which
+                partitions the frames into groups and then temporally pools visual tokens within each group. This
+                reduces temporal redundancy while retaining important spatiotemporal information. Compressing the visual
+                tokens by 4× leads to an acceptable accuracy drop. Compared to the original baseline with the same
+                number of tokens, the scaled and then expanded result costs almost the same but has much higher
+                accuracy. This approach further scales the number of frames and the compression ratio, leading to a
+                state-of-the-art 7B model on this benchmark.
             </p>
         </div>
 
-        
+
         <div>
             <img src="asset/temporal_scale_and_compress.png" alt="COAT performance" class="inserted-image">
         </div>
 
-        
+
         <div class="description-content">
             <h2> Dataset "scale-then-compress"</h2>
             <p>
-                In order to improve model accuracy, previous work kept grabbing high quality SFT datasets from various sources and can show improvement on Benchmark scores. However, <strong>not all data contributes equally to the model</strong> and continuous growth of datasets lead to much redundancy. In NVILA, we follow the "Scale-Then-Compress" concept to first increase our SFT dataset mixture and then try to compress the dataset. NVILA's training involves more than <strong>100M data</strong>, making it necessary to prune the training set while maintaining accuracy.
+                In order to improve model accuracy, previous work kept grabbing high quality SFT datasets from various
+                sources and can show improvement on Benchmark scores. However, <strong>not all data contributes equally
+                    to the model</strong> and continuous growth of datasets lead to much redundancy. In NVILA, we follow
+                the "Scale-Then-Compress" concept to first increase our SFT dataset mixture and then try to compress the
+                dataset. NVILA's training involves more than <strong>100M data</strong>, making it necessary to prune
+                the training set while maintaining accuracy.
             </p>
             <p>
-                Inspired by recent works in knowledge distillation, we leverage <em>DeltaLoss</em> to score the training set. Our experiments report the average performance across 10 benchmarks, with a focus on key tasks to demonstrate the method's effectiveness. We examine three pruning thresholds: 10%, 30%, and 50%, and notice that <em>DeltaLoss</em> consistently outperforms the random baseline. Especially on the GQA and DocVQA tasks, the random pruning shows significant performance degradation while DeltaLoss stays accurate. We notice 50% is a relatively safe threshold where the average score remains competitive while the training can be sped up by 2×. Thus, we set the threshold to 50% for later experiments.
+                Inspired by recent works in knowledge distillation, we leverage <em>DeltaLoss</em> to score the training
+                set. Our experiments report the average performance across 10 benchmarks, with a focus on key tasks to
+                demonstrate the method's effectiveness. We examine three pruning thresholds: 10%, 30%, and 50%, and
+                notice that <em>DeltaLoss</em> consistently outperforms the random baseline. Especially on the GQA and
+                DocVQA tasks, the random pruning shows significant performance degradation while DeltaLoss stays
+                accurate. We notice 50% is a relatively safe threshold where the average score remains competitive while
+                the training can be sped up by 2×. Thus, we set the threshold to 50% for later experiments.
 
             </p>
         </div>
 
-        
+
         <div>
             <img src="asset/delta_loss_viz.png" alt="delta loss" class="inserted-image">
         </div>
@@ -1084,13 +1125,22 @@
         <div class="description-content">
             <h2> FP8 Training and Lora Fine-Tuning</h2>
             <p>
-                We use FP8 from COAT to speed up NVILA training. Unlike LLM training, VLM training deals with varying sequence lengths: videos need many tokens, images need fewer, and text needs the least. This variability means smaller workloads can benefit from larger batch sizes. Using FP8 for weights and activations lets NVILA increase batch size from 4 to 16, doubling the speed. With gradient checkpointing, quantizing activations is less crucial. We use Liger's cross-entropy kernel to manage memory with Qwen's large vocabulary, still achieving a 1.2× speedup over BF16 training.
+                We use FP8 from COAT to speed up NVILA training. Unlike LLM training, VLM training deals with varying
+                sequence lengths: videos need many tokens, images need fewer, and text needs the least. This variability
+                means smaller workloads can benefit from larger batch sizes. Using FP8 for weights and activations lets
+                NVILA increase batch size from 4 to 16, doubling the speed. With gradient checkpointing, quantizing
+                activations is less crucial. We use Liger's cross-entropy kernel to manage memory with Qwen's large
+                vocabulary, still achieving a 1.2× speedup over BF16 training.
             </p>
             <p>
-                When fine-tuning the vision encoder (ViT) and language model (LLM) together using PEFT methods, we found that the learning rate for the ViT should be 5-50× lower than for the LLM. Additionally, fine-tuning the vision encoder with Layernorm achieves similar performance to LoRA but is more efficient, reducing training time by 25%. With this setup, NVILA can be fine-tuned for various tasks using 24 GB memory while maintaining performance.
+                When fine-tuning the vision encoder (ViT) and language model (LLM) together using PEFT methods, we found
+                that the learning rate for the ViT should be 5-50× lower than for the LLM. Additionally, fine-tuning the
+                vision encoder with Layernorm achieves similar performance to LoRA but is more efficient, reducing
+                training time by 25%. With this setup, NVILA can be fine-tuned for various tasks using 24 GB memory
+                while maintaining performance.
             </p>
         </div>
-        
+
         <div>
             <img src="asset/fp8_and_lora.png" alt="fp8_and_lora" class="inserted-image">
         </div>
@@ -1098,13 +1148,20 @@
         <div class="description-content" id="efficient_deployment">
             <h2> Efficient Deployment</h2>
             <p>
-                We have developed a specialized inference engine using quantization techniques to efficiently deploy NVILA. The inference process is divided into two phases: prefilling and decoding.
-                In the compute-intensive prefilling stage, we use token compression techniques to reduce the workload for the LLM backbone. The vision tower then becomes the main bottleneck, accounting for over 90% of the prefilling latency. To address this, we implement W8A8 quantization for the vision tower, reducing NVILA's Time-To-First-Token (TTFT) in this stage.
-                In the memory-intensive decoding stage, we use AWQ for W4A16 quantization of the LLM backbone to speed up the process. We further optimize the original AWQ implementation by introducing FP16 accumulation to the W4A16 GEMM kernels, achieving a 1.7× kernel speedup without losing accuracy. A detailed comparison is shown in the figure below.
+                We have developed a specialized inference engine using quantization techniques to efficiently deploy
+                NVILA. The inference process is divided into two phases: prefilling and decoding.
+                In the compute-intensive prefilling stage, we use token compression techniques to reduce the workload
+                for the LLM backbone. The vision tower then becomes the main bottleneck, accounting for over 90% of the
+                prefilling latency. To address this, we implement W8A8 quantization for the vision tower, reducing
+                NVILA's Time-To-First-Token (TTFT) in this stage.
+                In the memory-intensive decoding stage, we use AWQ for W4A16 quantization of the LLM backbone to speed
+                up the process. We further optimize the original AWQ implementation by introducing FP16 accumulation to
+                the W4A16 GEMM kernels, achieving a 1.7× kernel speedup without losing accuracy. A detailed comparison
+                is shown in the figure below.
             </p>
 
         </div>
-        
+
         <div>
             <img src="asset/deployment_viz.png" alt="fp8_and_lora" class="inserted-image">
         </div>
@@ -1113,12 +1170,17 @@
             <h2> Experiment Results</h2>
             <h3> Image Results </h3>
             <p>
-                We evaluated NVILA across various image benchmarks: AI2D, ChartQA, DocVQA, InfographicVQA, MathVista, MMMU (zero-shot CoT), RealworldQA, SEED-Bench, TextVQA, and VQAv2.
-                NVILA performs on par with leading open-source models like Qwen2-VL, InternVL, and Pixtral in each size category.
-                For visual question answering tasks (ChartQA, DocVQA, InfoVQA, TextVQA, VQAv2, Seed), NVILA-8B and NVILA-15B match or exceed the performance of proprietary models (GPT-4o, Gemini).
-                On science benchmarks (AI2D), NVILA-8B achieves state-of-the-art results among open-source models, and NVILA-15B competes well with proprietary models.
-                
-                For reasoning and knowledge benchmarks (MMMU, RealworldQA, MathVista), performance improves significantly with larger model sizes.
+                We evaluated NVILA across various image benchmarks: AI2D, ChartQA, DocVQA, InfographicVQA, MathVista,
+                MMMU (zero-shot CoT), RealworldQA, SEED-Bench, TextVQA, and VQAv2.
+                NVILA performs on par with leading open-source models like Qwen2-VL, InternVL, and Pixtral in each size
+                category.
+                For visual question answering tasks (ChartQA, DocVQA, InfoVQA, TextVQA, VQAv2, Seed), NVILA-8B and
+                NVILA-15B match or exceed the performance of proprietary models (GPT-4o, Gemini).
+                On science benchmarks (AI2D), NVILA-8B achieves state-of-the-art results among open-source models, and
+                NVILA-15B competes well with proprietary models.
+
+                For reasoning and knowledge benchmarks (MMMU, RealworldQA, MathVista), performance improves
+                significantly with larger model sizes.
                 NVILA-8B also excels in OCR tasks (TextVQA, AI2D, ChartQA, DocVQA, InfoVQA).
                 Below, we provide qualitative examples showcasing NVILA's OCR, reasoning, and multi-image capabilities.
             </p>
@@ -1131,26 +1193,33 @@
         <div class="description-content">
             <h3> Video Results </h3>
             <p>
-                We evaluate our models on a range of video understanding benchmarks, spanning short videos of a few seconds to longer videos up to an hour in duration. The table below presents the performance of NVILA compared to baseline models.
-                NVILA features long-context capability and can process up to 256 frames. With the scale-then-compress design, NVILA-8B achieves impressive results, setting new state-of-the-art performance across all benchmarks.
-                Notably, NVILA reaches performance levels comparable to GPT-4o mini with only 8B parameters and outperforms many larger models.
+                We evaluate our models on a range of video understanding benchmarks, spanning short videos of a few
+                seconds to longer videos up to an hour in duration. The table below presents the performance of NVILA
+                compared to baseline models.
+                NVILA features long-context capability and can process up to 256 frames. With the scale-then-compress
+                design, NVILA-8B achieves impressive results, setting new state-of-the-art performance across all
+                benchmarks.
+                Notably, NVILA reaches performance levels comparable to GPT-4o mini with only 8B parameters and
+                outperforms many larger models.
             </p>
 
             </p>
 
         </div>
-        
+
         <div>
             <img src="asset/video_results.png" alt="fp8_and_lora" class="inserted-image">
         </div>
 
         <!--BibTex citation -->
         <div id="bibtex" class="description-content">
-            <h2 class="title">BibTeX</h2>
+            <h2 class="title">
+                <button onclick="copyToClipboard()" class="button">BibTeX (click to copy)</button>
+            </h2>
         </div>
         <section class="citation" id="BibTeX">
             <div class="citation-content">
-                <pre><code>@misc{liu2024nvilaefficientfrontiervisual,
+                <pre><code>@misc{liu2024nvila,
       title={NVILA: Efficient Frontier Visual Language Models}, 
       author={Zhijian Liu and Ligeng Zhu and Baifeng Shi and Zhuoyang Zhang and Yuming Lou and Shang Yang and Haocheng Xi and Shiyi Cao and Yuxian Gu and Dacheng Li and Xiuyu Li and Yunhao Fang and Yukang Chen and Cheng-Yu Hsieh and De-An Huang and An-Chieh Cheng and Vishwesh Nath and Jinyi Hu and Sifei Liu and Ranjay Krishna and Daguang Xu and Xiaolong Wang and Pavlo Molchanov and Jan Kautz and Hongxu Yin and Song Han and Yao Lu},
       year={2024},
@@ -1161,6 +1230,18 @@
 }</code></pre>
             </div>
         </section>
+        <script>
+            function copyToClipboard() {
+                const bibtexContent = document.querySelector('#BibTeX pre code').textContent;
+                navigator.clipboard.writeText(bibtexContent).then(() => {
+                    alert('BibTeX content copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            }
+        </script>
+
+       
 
     </section>
     <!--End BibTex citation -->
