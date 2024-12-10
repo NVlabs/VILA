@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script> -->
+    <script defer src="https://busuanzi.9420.ltd/js"></script>
+    <!-- <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script> -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NVILA: Efficient Frontiers of Visual Language Models</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            /* Adjust this value to make the spacing larger */
+            margin: 0;
+            padding: 0;
+            color: black;
+            /* background-image: url('asset/samples/pexels-photo-28821825.jpeg');  */
+            background-size: contain;
+            /* Cover the entire viewport */
+            background-attachment: fixed;
+            /* Fixed background */
+            background-position: center;
+            direction: ltr;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 50px 0;
+            background-color: #fff;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+        }
+
+        .hero h1 {
+            font-size: 5em;
+            margin: 0.2em 0;
+        }
+
+        .hero h2 {
+            font-size: 2.8em;
+            margin: 0.2em 0;
+            font-weight: normal;
+            line-height: 1.4;
+            /* Adjust this value to make the spacing larger */
+        }
+
+        .hero p {
+            font-size: 1.4em;
+            margin-bottom: 1em;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 0.9em;
+            color: white;
+            background-color: black;
+            border-radius: 30px;
+            text-decoration: none;
+        }
+
+        .gallery-container {
+            max-width: 75%;
+            /* Limit the width of the gallery */
+            margin: 0 auto;
+            /* Center the gallery */
+            padding: 20px 0;
+            /* Add some padding on top and bottom */
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            /* 12 columns grid */
+            grid-auto-rows: 150px;
+            /* Adjust row height */
+            gap: 10px;
+        }
+
+        .gallery-item {
+            overflow: hidden;
+            /*aspect-ratio: 1/1; !* Keep the aspect ratio of the images *!*/
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            /*object-fit: cover;*/
+            object-fit: contain;
+            cursor: pointer;
+            /* Cursor change on hover */
+            border-radius: 20px;
+            /* Rounded corners */
+            transition: transform 0.3s ease;
+            /* Add smooth transition */
+        }
+
+        /* Image scaling on hover */
+        .gallery-item img:hover {
+            transform: scale(1.1);
+            /* Scale the image to 1.2 times its original size */
+        }
+
+        /* Define specific grid item placements */
+        .item1 {
+            grid-column: span 12;
+            grid-row: span 4;
+        }
+
+        /* Large image */
+        /* Modal styling */
+        #modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.9);
+            /* Black w/ opacity */
+            justify-content: center;
+            /* Horizontally center the image */
+            flex-direction: column;
+            align-items: center;
+            /* Center align items vertically */
+        }
+
+        #modal img {
+            margin: auto;
+            display: block;
+            max-width: 77%;
+            max-height: 77%;
+            /* Ensure the image doesn't overflow vertically */
+            object-fit: contain;
+            /* Make sure the aspect ratio is preserved */
+        }
+
+        #modal-description {
+            color: white;
+            text-align: center;
+            margin-top: 10px;
+            /* Adjust this value to move text closer to the image */
+            font-size: 1.2em;
+        }
+
+        .description {
+            font-family: Arial, sans-serif;
+            font-style: normal;
+            font-size: 17px;
+            line-height: 1.47;
+            color: #333;
+            /*color: black; !* Text color *!*/
+            letter-spacing: -0.022em;
+            font-weight: 400;
+            background-color: #fff;
+            /* Solid background color that spans the entire width */
+            padding: 20px 0;
+            /* Add vertical padding */
+            text-align: center;
+            /* Center align text */
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 2px 4px 12px #00000054;
+        }
+
+        .description_noborder {
+            font-family: Arial, sans-serif;
+            font-style: normal;
+            font-size: 17px;
+            line-height: 1.47;
+            color: #333;
+            /*color: black; !* Text color *!*/
+            letter-spacing: -0.022em;
+            font-weight: 400;
+            background-color: #fff;
+            /* Solid background color that spans the entire width */
+            padding: 20px 0;
+            /* Add vertical padding */
+            text-align: center;
+            /* Center align text */
+        }
+
+        .description-content {
+            /*background-color: rgba(255, 255, 255, 0.1); !* Semi-transparent background inside the section *!*/
+            /*border: 2px solid #555; !* Adding a lighter border *!*/
+            max-width: 65%;
+            /* Limit the width to 80% of the screen */
+            margin: 0 auto;
+            /* Center the content horizontally */
+            padding: 20px;
+            /* Padding inside the border */
+            font-style: normal;
+            border-radius: 18px;
+            /*box-shadow: 2px 4px 12px #00000014;*/
+        }
+
+        .description-content h1 {
+            display: block;
+            color: black;
+            font-size: 2em;
+            /* Adjust size as needed */
+            line-height: 1.2;
+            font-weight: bold;
+            text-align: center;
+            /* Center-align the h1 */
+            margin: 0.5em 0;
+            /* Adjust top and bottom margin as needed */
+            font-style: normal;
+        }
+
+        .description-content h2 {
+            display: block;
+            color: black;
+            font-size: 1.5em;
+            line-height: 1.125;
+            letter-spacing: .004em;
+            font-weight: 600;
+            text-align: left;
+            /* Center-align the h2 */
+            margin-block-start: 0.83em;
+            margin-block-end: 0.83em;
+            margin-inline-start: 0px;
+            margin-inline-end: 0px;
+            font-style: normal;
+        }
+
+        .description-content p {
+            font-size: 1.1em;
+            text-align: left;
+            /* Left-align the p */
+            font-weight: normal;
+        }
+
+        .citation {
+            /*background-color: #333; !* Solid background color that spans the entire width *!*/
+            font-family: Arial, sans-serif;
+            background-color: #fff;
+            /* Solid background color that spans the entire width */
+            color: black;
+            padding: 10px;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .citation-content {
+            text-align: left;
+            border-radius: 15px;
+            /* Rounded corners */
+            font-size: 0.8em;
+            max-width: 80%;
+            /* Limit the width to 80% of the screen */
+            margin: 0 auto;
+            /* Center the content horizontally */
+            margin-top: -30px;
+            padding: 0;
+            /* Padding inside the border */
+            background-color: #f5f5f5;
+            /* Semi-transparent background inside the section */
+            overflow-x: auto;
+            /* Horizontal scrolling */
+            overflow-y: hidden;
+            /* Prevent vertical scrolling */
+            white-space: nowrap;
+            /* Prevent line breaks */
+        }
+
+        .citation-content h2 {
+            font-size: 2em;
+            text-align: left;
+            font-weight: normal;
+        }
+
+        .citation pre {
+            border-radius: 15px;
+            /* Rounded corners */
+            max-width: 90%;
+            /* Limit the width to 80% of the screen */
+            text-align: left;
+        }
+
+        .footer {
+            background-color: #f5f5f5;
+            box-shadow: 2px 4px 12px #00000054;
+            color: #333;
+            padding: 20px;
+            text-align: center;
+            margin-top: -20px;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+
+        .footer a {
+            color: dodgerblue;
+            text-decoration: none;
+        }
+
+        .inserted-image {
+            max-width: 80%;
+            /* Set the maximum width for the image */
+            height: auto;
+            /* Ensure the height adjusts automatically to maintain aspect ratio */
+            margin: 30px;
+            /* Add space above and below the image */
+            margin-top: 10px;
+            display: block;
+            /* Make sure the image is treated as a block-level element */
+            margin-left: auto;
+            /* Center the image horizontally */
+            margin-right: auto;
+            border-radius: 10px;
+            box-shadow: 2px 2px 10px 3px #00000030;
+        }
+
+        .inserted-image-noshadow {
+            max-width: 30%;
+            /* Set the maximum width for the image */
+            margin-left: auto;
+            /* Center the image horizontally */
+            margin-right: auto;
+            border-radius: 10px;
+        }
+
+        .video-container {
+            text-align: center;
+            /* Center the video horizontally */
+            margin: 20px 0;
+            /* Add some vertical margin around the video */
+        }
+
+        video {
+            max-width: 80%;
+            /* The video will scale to fit the container */
+            height: auto;
+            /* Maintain the video's aspect ratio */
+            border-radius: 10px;
+            /* Rounded corners for the video */
+            box-shadow: 2px 2px 10px 3px #00000054;
+        }
+
+        .logo {
+            color: black;
+            display: flex;
+            justify-content: center;
+            /*justify-content: left;*/
+            align-items: center;
+            text-align: center;
+            gap: 60px;
+        }
+
+        .logo-sup {
+            position: absolute;
+            top: -5px;
+            /* Adjust this value to position it closer to the top */
+            right: -10px;
+            /* Adjust this value to move it horizontally */
+            font-size: 14px;
+            /* Increase the size of the superscript */
+            color: black;
+            /* Change the color if needed */
+        }
+
+        /* Image comparison container */
+        .image-comparison-container {
+            background-color: #fff;
+            /* Solid background color that spans the entire width */
+        }
+
+        .image-comparison-content {
+            position: relative;
+            width: 580px;
+            /* Adjust the width as needed */
+            height: 402px;
+            /* Adjust the height as needed */
+            overflow: hidden;
+            /* Make sure overflow isn't hiding any part of the images */
+            margin: 0 auto;
+            margin-top: -20px;
+            cursor: ew-resize;
+            border-radius: 10px;
+        }
+
+        .image-comparison-content img {
+            position: absolute;
+            width: 100%;
+            height: 99%;
+            background-color: #fff;
+            object-fit: contain;
+            /* Use contain to ensure the whole image is visible */
+        }
+
+        .image-comparison-content .slider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 2px;
+            background-color: #fff;
+            z-index: 10;
+        }
+
+        .image-comparison-content .slider-black {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 2px;
+            background-color: black;
+            z-index: 10;
+        }
+
+        .demo {
+            margin-top: -20px;
+            background-color: #fff;
+            text-align: center;
+        }
+
+        .demo iframe {
+            width: 50%;
+        }
+
+        .image-comparison-content .image-2 {
+            clip-path: inset(0 0 0 50%);
+        }
+
+        .image-comparison-content .image-4 {
+            clip-path: inset(0 0 0 50%);
+        }
+
+        @media (max-width: 4096px) {
+            .gallery {
+                /*grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); !* Adjust columns for smaller screens *!*/
+                grid-auto-columns: 100px;
+                /* Adjust columns for smaller screens */
+                grid-auto-rows: 200px;
+                /* Set a fixed height for the grid items */
+            }
+
+            .demo iframe {
+                width: 800px;
+            }
+        }
+
+        @media (max-width: 2048px) {
+            .gallery {
+                /*grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); !* Adjust columns for smaller screens *!*/
+                grid-auto-columns: 60px;
+                /* Adjust columns for smaller screens */
+                grid-auto-rows: 90px;
+                /* Set a fixed height for the grid items */
+            }
+
+            .demo iframe {
+                width: 800px;
+            }
+        }
+
+        @media (min-width: 2048px) {
+            .description-content {
+                max-width: 728px;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .citation-content {
+                max-width: 728px;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .inserted-image {
+                max-width: 1024px;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .inserted-image-noshadow {
+                max-width: 384px;
+                /* Limit the width to 80% of the screen */
+            }
+
+            video {
+                max-width: 1024px;
+                /* The video will scale to fit the container */
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .gallery {
+                /*grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); !* Adjust columns for smaller screens *!*/
+                grid-auto-columns: 40px;
+                /* Adjust columns for smaller screens */
+                grid-auto-rows: 70px;
+                /* Set a fixed height for the grid items */
+            }
+
+            .demo iframe {
+                width: 80%;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .description-content {
+                max-width: 728px;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .citation-content {
+                max-width: 728px;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .inserted-image {
+                max-width: 826px;
+                /* Limit the width to 80% of the screen */
+                padding: 5px;
+                /* Padding inside the border */
+            }
+
+            .inserted-image-noshadow {
+                max-width: 384px;
+                /* Limit the width to 80% of the screen */
+            }
+
+            video {
+                max-width: 728px;
+                /* The video will scale to fit the container */
+            }
+        }
+
+        @media (max-width: 768px) {
+            .gallery {
+                /*grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); !* Adjust columns for smaller screens *!*/
+                grid-auto-columns: 20px;
+                /* Adjust columns for smaller screens */
+                grid-auto-rows: 30px;
+                /* Set a fixed height for the grid items */
+                gap: 5px;
+            }
+
+            .gallery-container {
+                max-width: 85%;
+                /* Limit the width of the gallery */
+                padding: 10px 0;
+                /* Add some padding on top and bottom */
+            }
+
+            .hero h1 {
+                font-size: 3em;
+            }
+
+            .hero h2 {
+                font-size: 2em;
+            }
+
+            .hero p {
+                font-size: 1em;
+            }
+
+            .description-content {
+                max-width: 92%;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .citation-content {
+                max-width: 92%;
+                /* Limit the width to 80% of the screen */
+                padding: 10px;
+                /* Padding inside the border */
+            }
+
+            .inserted-image {
+                max-width: 95%;
+                /* Limit the width to 80% of the screen */
+                padding: 5px;
+                /* Padding inside the border */
+            }
+
+            .inserted-image-noshadow {
+                max-width: 50%;
+                /* Limit the width to 80% of the screen */
+                margin-left: auto;
+                /* Center the image horizontally */
+                margin-right: auto;
+            }
+
+            video {
+                max-width: 92%;
+                /* The video will scale to fit the container */
+            }
+
+            .logo {
+                gap: 10px;
+            }
+
+            .demo iframe {
+                width: 95%;
+            }
+        }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            .description {
+                background-color: #333;
+                /* Dark color for dark mode */
+                color: white;
+                /* Light text color for dark mode */
+            }
+
+            .description_noborder {
+                background-color: #333;
+                /* Dark color for dark mode */
+                color: white;
+                /* Light text color for dark mode */
+            }
+
+            .description_noborder h2 {
+                background-color: #333;
+                /* Dark color for dark mode */
+                color: white;
+                /* Light text color for dark mode */
+            }
+
+            .description-content h2 {
+                background-color: #333;
+                /* Dark color for dark mode */
+                color: white;
+                /* Light text color for dark mode */
+            }
+
+            .citation {
+                background-color: #333;
+                /* Dark color for dark mode */
+                color: white;
+                /* Light text color for dark mode */
+            }
+
+            .citation-content {
+                background-color: #555;
+                /* Dark color for dark mode */
+            }
+
+            .citation-content h2 {
+                background-color: #555;
+                /* Dark color for dark mode */
+            }
+
+            .footer {
+                background-color: #222;
+                /* Dark color for dark mode */
+                color: white;
+            }
+
+            .image-comparison-container {
+                background-color: #333;
+                /* Dark color for dark mode */
+            }
+
+            .demo {
+                background-color: #333;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!--    <div style="overflow: hidden; background-color: #6699cc;">-->
+    <!--      <div class="container">-->
+    <!--        <a href="https://www.nvidia.com/" style="float: left; color: black; text-align: center; padding: 12px 16px; text-decoration: none; font-size: 16px;"><img width="100%" src="https://nv-tlabs.github.io/3DStyleNet/assets/nvidia.svg"></a>-->
+    <!--        <a href="https://github.com/Efficient-Large-Model/" style="float: left; color: black; text-align: center; padding: 14px 16px; text-decoration: none; font-size: 16px;"><strong>Efficient AI Group</strong></a>-->
+    <!--      </div>-->
+    <!--    </div>-->
+    <div class="hero">
+        <h2>
+        <img src="asset/NVILA.png" alt="Logo" style="width: 160px; height: auto; margin-right: 3px;">: Efficient Frontier Visual Language Models
+        </h2>
+        <p>Enable large model training with limited resources</p>
+
+        <!-- Add author and institution information -->
+        <div style="margin-top: 20px; text-align: center;">
+            <p style="font-size: 1.3em; margin-bottom: 5px; width: 80%; margin: auto">
+                <a href="https://zhijianliu.com" target="_blank" style="color: #76b900;">Zhijian Liu</a><sup>1,†</sup>,
+                <a href="https://lzhu.me" target="_blank" style="color: #76b900;">Ligeng Zhu</a><sup>1,†</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Baifeng Shi</a><sup>1,3</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Zhuoyang Zhang</a><sup>1,2</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Yuming Lou</a><sup>1,6</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Shang Yang</a><sup>1,2</sup>,
+                <a href="https://xijiu9.github.io" target="_blank" style="color: #76b900;">Haocheng
+                    Xi</a><sup>1,3</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Shiyi Cao</a><sup>1,3</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Yuxian Gu</a><sup>2,6</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Dacheng Li</a><sup>1,3</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Xiuyu Li</a><sup>1,3</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Yunhao Fang</a><sup>1,4</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Yukang Chen</a><sup>1</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Cheng-Yu Hsieh</a><sup>5</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">De-An Huang</a><sup>1</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">An-Chieh Cheng</a><sup>4</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Vishwesh Nath</a><sup>1</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Jinyi Hu</a><sup>2,6</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Sifei Liu</a><sup>1</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Ranjay Krishna</a><sup>5</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Daguang Xu</a><sup>1</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Xiaolong Wang</a><sup>1,4</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Pavlo Molchanov</a><sup>1</sup>,
+                <a href="https://jankautz.com/" target="_blank" style="color: #76b900;">Jan Kautz</a><sup>1</sup>,
+                <a href="#" target="_blank" style="color: #76b900;">Hongxu Yin</a><sup>1</sup>,
+                <a href="https://hanlab.mit.edu/songhan/" target="_blank" style="color: #76b900;">Song
+                    Han</a><sup>1,2‡</sup>,
+                <a href="https://scholar.google.com/citations?user=OI7zFmwAAAAJ&hl=en/" target="_blank"
+                    style="color: #76b900;">Yao Lu</a><sup>1,‡</sup>,
+            </p>
+            <p style="font-size: 1.2em; color: #888;">
+                <sup>1</sup>NVIDIA,
+                <sup>2</sup>MIT,
+                <sup>2</sup>UC Berkeley,
+                <sup>4</sup>UC San Diego,
+                <sup>5</sup>University of Washington,
+                <sup>6</sup>Tsinghua University
+                <br>
+                <sup>†</sup>Equal contribution,
+                <sup>‡</sup>Equal advisory
+                <br>
+            </p>
+        </div>
+        <!--        <div style="overflow: hidden; background-color: #6699cc;">-->
+        <!-- <div style="overflow: hidden; background-color: #fff;">
+        <div class="logo" style="padding: 12px;">
+            <a href="https://www.nvidia.com/" style="text-decoration: none; font-size: 16px;">
+                <img src="https://nv-tlabs.github.io/3DStyleNet/assets/nvidia.svg" alt="NVIDIA Logo"
+                     style="width: auto; height: 30px;">
+            </a>
+            <a href="https://hanlab.mit.edu/" style="text-decoration: none; font-size: 16px;">
+                <img src="asset/mit_han.png" alt="MIT Logo" style="width: auto; height: 30px;">
+            </a>
+            <a href="https://www.berkeley.edu/" style="text-decoration: none; font-size: 16px;">
+                <img src="asset/University_of_California,_Berkeley.png" alt="Berkeley Logo"
+                     style="width: auto; height: 80px;">
+            </a>
+            <a href="" style="text-decoration: none; font-size: 16px;">
+                <img src="asset/thu.jpg" alt="THU Logo" style="width: auto; height: 40px;">
+            </a>
+            <a href="" style="text-decoration: none; font-size: 16px;">
+                <img src="asset/thu.jpg" alt="THU Logo" style="width: auto; height: 40px;">
+            </a>
+        </div>
+    </div> -->
+
+        <a href="https://arxiv.org/abs/2412.04468" class="button">Paper</a>
+        <a href="https://github.com/NVlabs/VILA" class="button">Code</a>
+        <a href="https://ligeng-zhu-vila.hf.space/" class="button">Demo</a>
+        <a href="https://forms.gle/6nf1QdPYdvC2vgxM8/" class="button">Subscribe</a>
+        <a style="color: #c2c2c2ea;"
+            href="https://huggingface.co/collections/Efficient-Large-Model/nvila-674f8163543890b35a91b428"
+            class="button">Models (coming soon)</a>
+        <a href="#bibtex" class="button">Citation</a>
+
+    </div>
+
+
+    <div class="gallery-container">
+        <section class="gallery" id="gallery">
+            <div class="gallery-item item1">
+                <img src="asset/teaser.jpg" alt="Image 1" data-description='Overview of NVILA Results'>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let slideIndex = 1;
+        showSlides(slideIndex);
+
+        // Next/previous controls
+        function plusSlides(n) {
+            showSlides(slideIndex += n);
+        }
+
+        // Thumbnail image controls
+        function currentSlide(n) {
+            showSlides(slideIndex = n);
+        }
+
+        function showSlides(n) {
+            let i;
+            let slides = document.getElementsByClassName("mySlides");
+            let dots = document.getElementsByClassName("demo");
+            let captionText = document.getElementById("caption");
+            if (n > slides.length) { slideIndex = 1 }
+            if (n < 1) { slideIndex = slides.length }
+            for (i = 0; i < slides.length; i++) {
+                slides[i].style.display = "none";
+            }
+            for (i = 0; i < dots.length; i++) {
+                dots[i].className = dots[i].className.replace(" active", "");
+            }
+            slides[slideIndex - 1].style.display = "block";
+            dots[slideIndex - 1].className += " active";
+            captionText.innerHTML = dots[slideIndex - 1].alt;
+        }
+
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        /* Position the image container (needed to position the left and right arrows) */
+        .container {
+            position: relative;
+        }
+
+        /* Hide the images by default */
+        .mySlides {
+            display: none;
+        }
+
+        /* Add a pointer when hovering over the thumbnail images */
+        .cursor {
+            cursor: pointer;
+            width: 100%;
+            /* height: 50pt; */
+            object-fit: contain;
+        }
+
+        /* Next & previous buttons */
+        .prev,
+        .next {
+            cursor: pointer;
+            position: absolute;
+            top: 40%;
+            width: auto;
+            padding: 16px;
+            margin-top: -50px;
+            color: white;
+            background-color: #00000030;
+            font-weight: bold;
+            font-size: 20px;
+            border-radius: 0 3px 3px 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .prev {
+            left: 0;
+            border-radius: 3px 0 0 3px;
+        }
+
+        .next {
+            right: 0;
+            border-radius: 0 3px 3px 0;
+        }
+
+        /* Position the "next button" to the right */
+        .next {
+            right: 0;
+            border-radius: 3px 0 0 3px;
+        }
+
+        /* On hover, add a black background color with a little bit see-through */
+        .prev:hover,
+        .next:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        /* Number text (1/3 etc) */
+        .numbertext {
+            color: #000000;
+            background-color: white;
+            opacity: 0.3;
+            font-size: 12px;
+            padding: 8px 12px;
+            position: absolute;
+            top: 0;
+        }
+
+        /* Container for image text */
+        .caption-container {
+            text-align: center;
+            background-color: #222;
+            padding: 2px 16px;
+            color: white;
+        }
+
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        /* Six columns side by side */
+        .column-gallery {
+            float: left;
+            width: 16.66%;
+        }
+
+        /* Add a transparency effect for thumnbail images */
+        .demo {
+            border: #000000;
+            /* border-radius: 15px; */
+            color: #00000030;
+            opacity: 0.3;
+        }
+
+        .active,
+        .demo:hover {
+            opacity: 1;
+        }
+    </style>
+
+    <!-- The Modal -->
+    <div id="modal" onclick="this.style.display='none'">
+        <img id="modal-img" src="">
+        <div id="modal-description"></div> <!-- Text for description -->
+    </div>
+
+    <section class="description">
+        <div class="description-content">
+            <h1>About NVILA</h1>
+            <p style="margin-bottom: 20px;">
+                Visual language models (VLMs) have made significant advances in accuracy in recent years. However, their
+                efficiency has received much less attention. This paper introduces <strong>NVILA</strong>, a family of
+                open VLMs designed to optimize both efficiency and accuracy. Building on top of VILA, we improve its
+                model architecture by first <strong>scaling up</strong> the spatial and temporal resolutions, and then
+                <strong>compressing</strong> visual tokens. This "scale-then-compress" approach enables NVILA to
+                efficiently process high-resolution images and long videos. We also conduct a systematic investigation
+                to enhance the efficiency of NVILA throughout its entire lifecycle, from training and fine-tuning to
+                deployment. NVILA matches or surpasses the accuracy of many leading open and proprietary VLMs across a
+                wide range of image and video benchmarks. At the same time, it reduces training costs by
+                <strong>4.5×</strong>, fine-tuning memory usage by <strong>3.4×</strong>, pre-filling latency by
+                <strong>1.6-2.2×</strong>, and decoding latency by <strong>1.2-2.8×</strong>. We make our code and
+                models available to facilitate reproducibility.
+            </p>
+        </div>
+    </section>
+
+    <section class="description_noborder">
+        <!-- Container for the image gallery -->
+        <div class="container" style="width: 80%; margin:auto">
+            <!-- Full-width images with number text -->
+            <div class="mySlides" style="display: block;">
+                <div class="numbertext gallery-item">1 / 5</div>
+                <img src="asset/example.jpg" style="width:100%" class="inserted-image">
+            </div>
+
+            <div class="mySlides">
+                <div class="numbertext gallery-item">2 / 5</div>
+                <img src="asset/example_vqa.jpg" style="width:100%" class="inserted-image">
+            </div>
+
+            <div class="mySlides">
+                <div class="numbertext gallery-item">3 / 5</div>
+                <img src="asset/example_meme.jpg" style="width:100%" class="inserted-image">
+            </div>
+
+            <div class="mySlides">
+                <div class="numbertext gallery-item">4 / 5</div>
+                <img src="asset/example_video.jpg" style="width:100%" class="inserted-image">
+            </div>
+
+            <div class="mySlides">
+                <div class="numbertext gallery-item">5 / 5</div>
+                <img src="asset/more_examples.jpg" style="width:100%" class="inserted-image">
+            </div>
+
+            <!-- Next and previous buttons -->
+            <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+            <a class="next" onclick="plusSlides(1)">&#10095;</a>
+
+            <!-- Image text -->
+            <div class="caption-container">
+                <p id="caption">NVILA Examples</p>
+            </div>
+            
+            <br>
+            <!-- Thumbnail images -->
+            <div class="row">
+                <div class="column column-gallery" x>
+                    <img class="demo cursor" src="asset/example.jpg" style="width:100%" onclick="currentSlide(1)"
+                        alt="OCR and Accounting">
+                </div>
+                <div class="column column-gallery">
+                    <img class="demo cursor" src="asset/example_vqa.jpg" style="width:100%" onclick="currentSlide(2)"
+                        alt="Reasoning and Math">
+                </div>
+                <div class="column column-gallery">
+                    <img class="demo cursor" src="asset/example_meme.jpg" style="width:100%" onclick="currentSlide(3)"
+                        alt="Meme Explaination and OCR">
+                </div>
+                <div class="column column-gallery">
+                    <img class="demo cursor" src="asset/example_video.jpg" style="width:100%" onclick="currentSlide(4)"
+                        alt="Video Understanding">
+                </div>
+                <div class="column column-gallery">
+                    <img class="demo cursor" src="asset/more_examples.jpg" style="width:100%" onclick="currentSlide(5)"
+                        alt="Video Understanding and Travel Sign Reading">
+                </div>
+            </div>
+        </div>
+        <!--  -->
+
+        <div class="description-content">
+            <h2>NVILA's core design concept</h2>
+            <p>
+                In this paper, we introduce <strong>NVILA</strong>, a family of open VLMs designed to optimize both efficiency and accuracy. Building on VILA, we improve its model architecture by first scaling up the spatial and temporal resolution, followed by compressing visual tokens. "Scaling" preserves more details from visual inputs, raising the accuracy upper bound, while "compression" squeezes visual information to fewer tokens, improving computational efficiency. This "<em>scale-then-compress</em>" strategy allows NVILA to process high-resolution images and long videos both effectively and efficiently. In addition, we conduct a systematic study to optimize the efficiency of NVILA throughout its entire lifecycle, including training, fine-tuning, and deployment.
+            </p>
+        </div>
+
+
+        <div class="description-content">
+            <h2> Spatial "scale-then-compress"</h2>
+            <p>
+                For spatial scaling, we increase the image resolution of the vision encoder to 896×896. However, uniformly applying high resolution is inefficient for smaller images. To address this, we use S2 to extract multi-scale high-resolution features with image tiling. S2 resizes the image into multiple scales (e.g., 448², 896², 1344²), splits each scale into 448² tiles, processes each tile individually, and stitches the tiles back together. Feature maps from different scales are then interpolated and concatenated.
+
+                S2 resizes images into squares, causing distortion for images with varying aspect ratios. To address this, we propose DynS2, which maintains the original aspect ratio at the largest scale. DynS2 adjusts image dimensions to the closest size divisible by 448² tiles, processes the tiles, and concatenates feature maps from all scales.
+
+                With DynS2, the model achieves up to 30% accuracy improvements on text-heavy benchmarks. To compress spatial tokens, we use a 2×2 spatial-to-channel (STC) reshape, reducing token count by a factor of 4 without sacrificing accuracy. More aggressive reductions cause performance drops, so we introduce an additional visual encoder pre-training stage to recover accuracy loss, achieving a 2.4× speedup in training and inference.
+
+                Alternative designs like TokenLearner and Perceiver Resampler do not outperform the simple STC design with the same token reduction ratio.
+            </p>
+        </div>
+
+        <div>
+            <img src="asset/spatial_scale_and_compress.png" alt="COAT performance" class="inserted-image">
+        </div>
+
+        <div class="description-content">
+            <h2> Temporal "scale-then-compress"</h2>
+            <p>
+                For temporal scaling, we increase the number of uniformly sampled frames from the input video. Following previous methods, we train the model with additional video-supervised fine-tuning (SFT) to extend its capability to process more frames. Extending the number of frames from 8 to 32 can increase the model's accuracy on Video-MME by more than 5%. However, this also increases the number of visual tokens by 4×.
+
+                Similar to spatial token compression, we reduce these visual tokens using temporal averaging, which partitions the frames into groups and then temporally pools visual tokens within each group. This reduces temporal redundancy while retaining important spatiotemporal information. Compressing the visual tokens by 4× leads to an acceptable accuracy drop. Compared to the original baseline with the same number of tokens, the scaled and then expanded result costs almost the same but has much higher accuracy. This approach further scales the number of frames and the compression ratio, leading to a state-of-the-art 7B model on this benchmark.
+            </p>
+        </div>
+
+        
+        <div>
+            <img src="asset/temporal_scale_and_compress.png" alt="COAT performance" class="inserted-image">
+        </div>
+
+        
+        <div class="description-content">
+            <h2> Dataset "scale-then-compress"</h2>
+            <p>
+                In order to improve model accuracy, previous work kept grabbing high quality SFT datasets from various sources and can show improvement on Benchmark scores. However, <strong>not all data contributes equally to the model</strong> and continuous growth of datasets lead to much redundancy. In NVILA, we follow the "Scale-Then-Compress" concept to first increase our SFT dataset mixture and then try to compress the dataset. NVILA's training involves more than <strong>100M data</strong>, making it necessary to prune the training set while maintaining accuracy.
+            </p>
+            <p>
+                Inspired by recent works in knowledge distillation, we leverage <em>DeltaLoss</em> to score the training set. Our experiments report the average performance across 10 benchmarks, with a focus on key tasks to demonstrate the method's effectiveness. We examine three pruning thresholds: 10%, 30%, and 50%, and notice that <em>DeltaLoss</em> consistently outperforms the random baseline. Especially on the GQA and DocVQA tasks, the random pruning shows significant performance degradation while DeltaLoss stays accurate. We notice 50% is a relatively safe threshold where the average score remains competitive while the training can be sped up by 2×. Thus, we set the threshold to 50% for later experiments.
+
+            </p>
+        </div>
+
+        
+        <div>
+            <img src="asset/delta_loss_viz.png" alt="delta loss" class="inserted-image">
+        </div>
+
+
+        <div class="description-content">
+            <h2> FP8 Training and Lora Fine-Tuning</h2>
+            <p>
+                We use FP8 from COAT to speed up NVILA training. Unlike LLM training, VLM training deals with varying sequence lengths: videos need many tokens, images need fewer, and text needs the least. This variability means smaller workloads can benefit from larger batch sizes. Using FP8 for weights and activations lets NVILA increase batch size from 4 to 16, doubling the speed. With gradient checkpointing, quantizing activations is less crucial. We use Liger's cross-entropy kernel to manage memory with Qwen's large vocabulary, still achieving a 1.2× speedup over BF16 training.
+            </p>
+            <p>
+                When fine-tuning the vision encoder (ViT) and language model (LLM) together using PEFT methods, we found that the learning rate for the ViT should be 5-50× lower than for the LLM. Additionally, fine-tuning the vision encoder with Layernorm achieves similar performance to LoRA but is more efficient, reducing training time by 25%. With this setup, NVILA can be fine-tuned for various tasks using 24 GB memory while maintaining performance.
+            </p>
+        </div>
+        
+        <div>
+            <img src="asset/fp8_and_lora.png" alt="fp8_and_lora" class="inserted-image">
+        </div>
+
+        <div class="description-content" id="efficient_deployment">
+            <h2> Efficient Deployment</h2>
+            <p>
+                We have developed a specialized inference engine using quantization techniques to efficiently deploy NVILA. The inference process is divided into two phases: prefilling and decoding.
+                In the compute-intensive prefilling stage, we use token compression techniques to reduce the workload for the LLM backbone. The vision tower then becomes the main bottleneck, accounting for over 90% of the prefilling latency. To address this, we implement W8A8 quantization for the vision tower, reducing NVILA's Time-To-First-Token (TTFT) in this stage.
+                In the memory-intensive decoding stage, we use AWQ for W4A16 quantization of the LLM backbone to speed up the process. We further optimize the original AWQ implementation by introducing FP16 accumulation to the W4A16 GEMM kernels, achieving a 1.7× kernel speedup without losing accuracy. A detailed comparison is shown in the figure below.
+            </p>
+
+        </div>
+        
+        <div>
+            <img src="asset/fp8_and_lora.png" alt="fp8_and_lora" class="inserted-image">
+        </div>
+
+        <div class="description-content">
+            <h2> Experiment Results</h2>
+            <h3> Image Results </h3>
+            <p>
+                We evaluated NVILA across various image benchmarks: AI2D, ChartQA, DocVQA, InfographicVQA, MathVista, MMMU (zero-shot CoT), RealworldQA, SEED-Bench, TextVQA, and VQAv2.
+                NVILA performs on par with leading open-source models like Qwen2-VL, InternVL, and Pixtral in each size category.
+                For visual question answering tasks (ChartQA, DocVQA, InfoVQA, TextVQA, VQAv2, Seed), NVILA-8B and NVILA-15B match or exceed the performance of proprietary models (GPT-4o, Gemini).
+                On science benchmarks (AI2D), NVILA-8B achieves state-of-the-art results among open-source models, and NVILA-15B competes well with proprietary models.
+                
+                For reasoning and knowledge benchmarks (MMMU, RealworldQA, MathVista), performance improves significantly with larger model sizes.
+                NVILA-8B also excels in OCR tasks (TextVQA, AI2D, ChartQA, DocVQA, InfoVQA).
+                Below, we provide qualitative examples showcasing NVILA's OCR, reasoning, and multi-image capabilities.
+            </p>
+        </div>
+
+        <div>
+            <img src="asset/image_results.png" alt="fp8_and_lora" class="inserted-image">
+        </div>
+
+        <div class="description-content">
+            <h3> Video Results </h3>
+            <p>
+                We evaluate our models on a range of video understanding benchmarks, spanning short videos of a few seconds to longer videos up to an hour in duration. The table below presents the performance of NVILA compared to baseline models.
+                NVILA features long-context capability and can process up to 256 frames. With the scale-then-compress design, NVILA-8B achieves impressive results, setting new state-of-the-art performance across all benchmarks.
+                Notably, NVILA reaches performance levels comparable to GPT-4o mini with only 8B parameters and outperforms many larger models.
+            </p>
+
+            </p>
+
+        </div>
+        
+        <div>
+            <img src="asset/video_results.png" alt="fp8_and_lora" class="inserted-image">
+        </div>
+
+        <!--BibTex citation -->
+        <div id="bibtex" class="description-content">
+            <h2 class="title">BibTeX</h2>
+        </div>
+        <section class="citation" id="BibTeX">
+            <div class="citation-content">
+                <pre><code>@misc{liu2024nvilaefficientfrontiervisual,
+      title={NVILA: Efficient Frontier Visual Language Models}, 
+      author={Zhijian Liu and Ligeng Zhu and Baifeng Shi and Zhuoyang Zhang and Yuming Lou and Shang Yang and Haocheng Xi and Shiyi Cao and Yuxian Gu and Dacheng Li and Xiuyu Li and Yunhao Fang and Yukang Chen and Cheng-Yu Hsieh and De-An Huang and An-Chieh Cheng and Vishwesh Nath and Jinyi Hu and Sifei Liu and Ranjay Krishna and Daguang Xu and Xiaolong Wang and Pavlo Molchanov and Jan Kautz and Hongxu Yin and Song Han and Yao Lu},
+      year={2024},
+      eprint={2412.04468},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2412.04468}, 
+}</code></pre>
+            </div>
+        </section>
+
+    </section>
+    <!--End BibTex citation -->
+
+    <!-- <script defer src="https://busuanzi.9420.ltd/js"></script>
+
+本文总阅读量 <span id="busuanzi_page_pv"></span> 次
+本文总访客量 <span id="busuanzi_page_uv"></span> 人
+本站总访问量 <span id="busuanzi_site_pv"></span> 次
+本站总访客数 <span id="busuanzi_site_uv"></span> 人 -->
+    <!-- Footer Section -->
+    <footer class="footer">
+        <div class="container">
+            <div class="columns tered">
+                <div class="column is-8">
+                    <div class="content">
+                        <p>
+                            This website is licensed under a <a rel="license"
+                                href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative
+                                Commons Attribution-ShareAlike 4.0 International License</a>.
+                        </p>
+                        <p>Total clicks:
+                            <span id="busuanzi_page_pv"></span>
+                        </p>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <!-- End Footer -->
+
+    <script>
+        // Function to open the modal and display the clicked image and description
+        function openModal(img) {
+            var modal = document.getElementById("modal");
+            var modalImg = document.getElementById("modal-img");
+            var modalDescription = document.getElementById("modal-description");
+
+            modal.style.display = "flex";
+            modalImg.src = img.src;
+            modalDescription.textContent = img.getAttribute('data-description'); // Get description from data-description attribute
+        }
+
+        // Add click event listeners to all images in the gallery with their descriptions
+        const images = document.querySelectorAll('.gallery-item img');
+        images.forEach((img) => {
+            img.addEventListener('click', () => openModal(img));
+        });
+    </script>
+
+    <script>
+        const container = document.querySelector('.image-comparison-content');
+        const slider = document.querySelector('.slider');
+        // const slider_black = document.querySelector('.slider-black');
+        const image2 = document.querySelector('.image-2');
+        // const image4 = document.querySelector('.image-4');
+
+        container.addEventListener('mousemove', (e) => {
+            const rect = container.getBoundingClientRect();
+            let xPos = e.clientX - rect.left;
+
+            if (xPos < 0) xPos = 0;
+            if (xPos > rect.width) xPos = rect.width;
+
+            const percentage = (xPos / rect.width) * 100;
+
+            slider.style.left = `${percentage}%`;
+            // slider_black.style.left = `${percentage}%`;
+            image2.style.clipPath = `inset(0 0 0 ${percentage}%)`;
+            // image4.style.clipPath = `inset(0 0 0 ${percentage}%)`;
+        });
+    </script>
+</body>
+
+</html>
