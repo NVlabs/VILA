@@ -1,8 +1,8 @@
 JOBS_LIMIT=${1:-32}  # Set your limit here
-workdir=${2:-/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m/panda70m_training_10m}
+workdir=${2:-$HOME/dataset/panda70m/panda70m_training_10m}
 
 
-workdir=/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/video_datasets_v2/internvid/video_data_tar
+workdir=$HOME/dataset/video_datasets_v2/internvid/video_data_tar
 
 parallel_size=32
 idx_size=$(( parallel_size - 1 ))

@@ -1,3 +1,0 @@
-google-cloud-aiplatform
-openai
-tqdm

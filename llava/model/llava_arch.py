@@ -12,42 +12,40 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import copy
+import json
 import logging
 import os
 import os.path as osp
 import warnings
 from abc import ABC
-from collections import OrderedDict
-from typing import List, Optional, Union
+from collections import OrderedDict, defaultdict, deque
+from itertools import chain
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.distributed as dist
-from PIL import Image
+import torch.nn.functional as F
+from einops import rearrange
+from hydra.utils import instantiate
 from transformers import AutoConfig, GenerationConfig, PreTrainedModel
 from transformers.modeling_utils import ContextManagers, no_init_weights
 
-from llava import modals
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_PATCH_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
-from llava.mm_utils import opencv_extract_frames, process_images
+from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
+from llava.mm_utils import process_image, process_images
 from llava.model.configuration_llava import LlavaConfig
 from llava.model.language_model.builder import build_llm_and_tokenizer
 from llava.model.multimodal_encoder.builder import build_vision_tower
 from llava.model.multimodal_projector.builder import build_mm_projector
 from llava.model.utils import get_model_config
 from llava.train.sequence_parallel import get_pg_manager
-from llava.utils.tokenizer import infer_stop_tokens, tokenize_conversation
+from llava.utils import distributed as dist
+from llava.utils.media import extract_media
+from llava.utils.tokenizer import tokenize_conversation
 
 
-# TODO decide whether should we use metaclass
 class LlavaMetaModel(ABC):
-    def init_vlm(self, config: PreTrainedModel = None, *args, **kwargs):
+    def init_vlm(self, config, *args, **kwargs):
         # TODO(ligeng): figure out how from_config and from_pretrained works in HF implementation.
         if hasattr(self, "llm") or hasattr(self, "vision_tower") or hasattr(self, "mm_projector"):
             # already initialized, skipped
@@ -76,6 +74,13 @@ class LlavaMetaModel(ABC):
         self.llm, self.tokenizer = build_llm_and_tokenizer(llm_cfg, config, *args, **kwargs)
         self.vision_tower = build_vision_tower(vision_tower_cfg, config)
         self.mm_projector = build_mm_projector(mm_projector_cfg, config)
+
+        self.encoders = {}
+        for name in ["image", "video"]:
+            config = getattr(self.config, f"{name}_encoder")
+            if isinstance(config, str):
+                config = json.loads(config)
+            self.encoders[name] = instantiate(config, parent=self)
 
         self.post_config()
         self.is_loaded = True
@@ -238,9 +243,142 @@ class LlavaMetaModel(ABC):
             if self.get_mm_projector() and not getattr(self.config, "tune_mm_projector", False):
                 self.get_mm_projector().eval()
 
-    def encode_images(self, images):
-        image_features = self.get_vision_tower()(images)
-        image_features = self.get_mm_projector()(image_features)
+    @staticmethod
+    def merge_chessboard(x, num_split_h, num_split_w):
+        """
+        x: b * n * c or b * h * w * c
+        out: b * c * h * w
+        Assuming x contains num_split**2 sub-squares concatenated along batch dimension, merge the sub-squares back to the original whole square.
+        """
+        B = x.shape[0]
+        if x.dim() == 3:
+            N = x.shape[1]
+            x = rearrange(x, "b (h w) c -> b c h w", h=int(N**0.5), w=int(N**0.5))
+
+        assert B % (num_split_h * num_split_w) == 0
+        b = B // (num_split_h * num_split_w)
+
+        x_merge = torch.cat(
+            [
+                torch.cat(
+                    [x[(i * num_split_w + j) * b : (i * num_split_w + j + 1) * b] for j in range(num_split_w)], dim=-1
+                )
+                for i in range(num_split_h)
+            ],
+            dim=-2,
+        )
+
+        return x_merge
+
+    @staticmethod
+    def split_chessboard(x, num_split_h, num_split_w):
+        """
+        x: b * c * h * w
+        out: b * c * h * w
+        Deividing x into num_split**2 sub-squares, and concatenate all the sub-squares on the batch dimension
+        """
+        B, C, H, W = x.shape
+        assert H % num_split_h == 0 and W % num_split_w == 0
+        h, w = H // num_split_h, W // num_split_w
+        x_split = torch.cat(
+            [x[:, :, i * h : (i + 1) * h, j * w : (j + 1) * w] for i in range(num_split_h) for j in range(num_split_w)],
+            dim=0,
+        )
+        return x_split
+
+    def merge_features_for_dynamic_s2(self, image_features, block_sizes):
+        scales = self.get_vision_tower().scales
+        resize_output_to_scale_idx = self.get_vision_tower().resize_output_to_scale_idx
+
+        image_features_each_image = []
+        new_block_sizes = []
+        block_cnt = 0
+        for block_size_each_image in block_sizes:
+            if block_size_each_image is None:
+                cur_features = image_features[block_cnt : block_cnt + 1]
+                cur_features = rearrange(cur_features, "1 (h w) c -> 1 c h w", h=int(cur_features.shape[1] ** 0.5))
+                cur_features = cur_features.repeat(1, len(scales), 1, 1)
+                image_features_each_image.append(cur_features)
+                new_block_sizes.append((1, 1))
+                block_cnt += 1
+            else:
+                cur_features_each_scale = []
+                for scale in scales[:-1]:
+                    num_blocks_this_scale = (scale // scales[0]) ** 2
+                    cur_features_each_scale.append(
+                        self.merge_chessboard(
+                            image_features[block_cnt : block_cnt + num_blocks_this_scale],
+                            num_split_h=scale // scales[0],
+                            num_split_w=scale // scales[0],
+                        )
+                    )  # 1 * C * H * W
+                    block_cnt += num_blocks_this_scale
+                num_blocks_last_scale = block_size_each_image[0] * block_size_each_image[1]
+                cur_features_each_scale.append(
+                    self.merge_chessboard(
+                        image_features[block_cnt : block_cnt + num_blocks_last_scale],
+                        num_split_h=block_size_each_image[0],
+                        num_split_w=block_size_each_image[1],
+                    )
+                )  # 1 * C * H * W
+                block_cnt += num_blocks_last_scale
+
+                # resize and concat features from different scales
+                output_size = cur_features_each_scale[resize_output_to_scale_idx].shape[-2:]
+                cur_features = torch.cat(
+                    [
+                        F.interpolate(cur_features_each_scale[i].to(torch.float32), size=output_size, mode="area").to(
+                            cur_features_each_scale[i].dtype
+                        )
+                        for i in range(len(cur_features_each_scale))
+                    ],
+                    dim=1,
+                )
+                # cur_features = rearrange(cur_features, "1 c h w -> (h w) c")
+
+                image_features_each_image.append(cur_features)
+
+                if resize_output_to_scale_idx == len(scales) - 1 or resize_output_to_scale_idx == -1:
+                    new_block_sizes.append(block_size_each_image)
+                else:
+                    new_block_sizes.append(
+                        (
+                            scales[resize_output_to_scale_idx] // scales[0],
+                            scales[resize_output_to_scale_idx] // scales[0],
+                        )
+                    )
+
+        assert block_cnt == len(image_features)
+
+        return image_features_each_image, new_block_sizes
+
+    def encode_images(self, images, block_sizes: Optional[Optional[Tuple[int, ...]]] = None):
+        if block_sizes is None:
+            block_sizes = [None] * len(images)
+        if getattr(self.config, "dynamic_s2", False):
+            image_features = self.get_vision_tower()(images)
+            image_features, new_block_sizes = self.merge_features_for_dynamic_s2(image_features, block_sizes)
+
+            image_features = [
+                self.split_chessboard(x, block_size[0], block_size[1])
+                for x, block_size in zip(image_features, new_block_sizes)
+            ]  # list of B * C * H * W tensors
+            image_features = torch.cat(
+                [rearrange(x, "b c h w -> b (h w) c") for x in image_features], dim=0
+            )  # B * N * C
+            image_features = self.get_mm_projector()(image_features)
+            image_features = list(
+                image_features.split([block_size[0] * block_size[1] for block_size in new_block_sizes], dim=0)
+            )
+            image_features = [
+                self.merge_chessboard(x, block_size[0], block_size[1])
+                for x, block_size in zip(image_features, new_block_sizes)
+            ]  # list of 1 * C * H * W tensors
+            image_features = [rearrange(x, "1 c h w -> (h w) c") for x in image_features]  # list of N * C tensors
+            image_features = torch.stack(image_features, dim=0)
+        else:
+            image_features = self.get_vision_tower()(images)
+            image_features = self.get_mm_projector()(image_features)
         return image_features
 
     ## @yunhao: is there a better way to handle function call and attributes for llm?
@@ -259,276 +397,134 @@ class LlavaMetaModel(ABC):
 
 
 class LlavaMetaForCausalLM(ABC):
-    """This class is originally implemented by the LLaVA team and
-    modified by Haotian Tang and Jason Lu based on Ji Lin's implementation
-    to support multiple images and input packing."""
-
-    ## TODO move the forward function here if there is no need to override it
-    def prepare_inputs_labels_for_multimodal(
-        self, input_ids, position_ids, attention_mask, past_key_values, labels, images
-    ):
-
-        # Handle sequence parallelism
-        PROCESS_GROUP_MANAGER = get_pg_manager()
-        if PROCESS_GROUP_MANAGER is None:
-            sp_degree = -1
-            sp_rank = -1
-        else:
-            sp_degree = PROCESS_GROUP_MANAGER.sp_degree
-            sp_rank = PROCESS_GROUP_MANAGER.sp_rank
-
-        vision_tower = self.get_vision_tower()
-        if vision_tower is None or images is None or (input_ids.shape[1] == 1 and PROCESS_GROUP_MANAGER is None):
-            if (
-                past_key_values is not None
-                and vision_tower is not None
-                and images is not None
-                and input_ids.shape[1] == 1
-            ):
-                target_shape = past_key_values[-1][-1].shape[-2] + 1
-                attention_mask = torch.cat(
-                    (
-                        attention_mask,
-                        torch.ones(
-                            (
-                                attention_mask.shape[0],
-                                target_shape - attention_mask.shape[1],
-                            ),
-                            dtype=attention_mask.dtype,
-                            device=attention_mask.device,
-                        ),
-                    ),
-                    dim=1,
-                )
-                position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
-            return (
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
-                None,
-                labels,
-            )
-        # handle different image dtypes for packing
-        if type(images) is list:
-            images = torch.cat(images, dim=0)
-        elif images.ndim == 5:  # batch_size x seq_len x image_channels
-            images = images.flatten(0, 1)
-        image_features = self.encode_images(images).to(self.device)
-        # Note (kentang-mit@): image start / end is not implemented here to support pretraining.
-        if getattr(self.config, "turn_mm_projector", False) and getattr(self.config, "mm_use_im_start_end", False):
-            raise NotImplementedError
-
-        # Let's just add dummy tensors if they do not exist,
-        # it is a headache to deal with None all the time.
-        # But it is not ideal, and if you have a better idea,
-        # please open an issue / submit a PR, thanks.
-        _labels = labels
-        _position_ids = position_ids
-        _attention_mask = attention_mask
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
-        else:
-            attention_mask = attention_mask.bool()
-        if position_ids is None:
-            position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
-        if labels is None:
-            labels = torch.full_like(input_ids, IGNORE_INDEX)
-
-        # remove the padding using attention_mask
-        input_ids_copy = input_ids.clone()
-        # kentang-mit@: Otherwise tokenizer out of bounds. Embeddings of image tokens will not be used.
-        input_ids_copy[input_ids_copy == IMAGE_TOKEN_INDEX] = 0
-        input_embeds = self.llm.model.embed_tokens(input_ids_copy)
-
-        input_ids = [
-            cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)
-        ]
-        input_embeds_1 = [
-            cur_input_embeds[cur_attention_mask]
-            for cur_input_embeds, cur_attention_mask in zip(input_embeds, attention_mask)
-        ]
-        labels = [cur_labels[cur_attention_mask] for cur_labels, cur_attention_mask in zip(labels, attention_mask)]
-
-        new_input_embeds = []
-        new_labels = []
-        cur_image_idx = 0
-
-        # kentang-mit@: If some part of the model is executed in the loop, the the loop length needs to be a constant.
-        for batch_idx, cur_input_ids in enumerate(input_ids):
-            cur_input_ids = input_ids[batch_idx]
-            num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
-            if num_images == 0:
-                cur_image_features = image_features[0]
-                cur_input_embeds_1 = input_embeds_1[batch_idx]
-                cur_input_embeds = torch.cat([cur_input_embeds_1, cur_image_features[0:0]], dim=0)
-                new_input_embeds.append(cur_input_embeds)
-                new_labels.append(labels[batch_idx])
-                # kenang-mit@: we do not have placeholdr image for text-only data now.
-                continue
-
-            cur_input_embeds = input_embeds_1[batch_idx]
-            image_token_indices = (
-                [-1] + torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() + [cur_input_ids.shape[0]]
-            )
-            cur_input_ids_noim = []
-            cur_labels = labels[batch_idx]
-            cur_labels_noim = []
-            cur_input_embeds_no_im = []
-            for i in range(len(image_token_indices) - 1):
-                if sp_degree > 1 and i == 0 and sp_rank != 0:  # Handle sequence parallelism
-                    cur_input_ids_noim.append(cur_input_ids[0:0])
-                    cur_labels_noim.append(cur_labels[0:0])
-                    cur_input_embeds_no_im.append(cur_input_embeds[0:0])
-                    continue
-                cur_input_ids_noim.append(cur_input_ids[image_token_indices[i] + 1 : image_token_indices[i + 1]])
-                cur_labels_noim.append(cur_labels[image_token_indices[i] + 1 : image_token_indices[i + 1]])
-                cur_input_embeds_no_im.append(cur_input_embeds[image_token_indices[i] + 1 : image_token_indices[i + 1]])
-
-            cur_new_input_embeds = []
-            cur_new_labels = []
-            for i in range(num_images + 1):
-                cur_new_input_embeds.append(cur_input_embeds_no_im[i])
-                cur_new_labels.append(cur_labels_noim[i])
-                if i < num_images:
-                    cur_image_features = image_features[cur_image_idx]
-                    cur_image_idx += 1
-                    cur_new_input_embeds.append(cur_image_features)
-                    cur_new_labels.append(
-                        torch.full(
-                            (cur_image_features.shape[0],),
-                            IGNORE_INDEX,
-                            device=cur_labels.device,
-                            dtype=cur_labels.dtype,
-                        )
-                    )
-
-            cur_new_input_embeds = torch.cat(cur_new_input_embeds)
-            cur_new_labels = torch.cat(cur_new_labels)
-
-            new_input_embeds.append(cur_new_input_embeds)
-            new_labels.append(cur_new_labels)
-
-        # Truncate sequences to max length as image embeddings can make the sequence longer
-        tokenizer_model_max_length = getattr(self.llm.config, "tokenizer_model_max_length", None)
-        if tokenizer_model_max_length is not None:
-            if any(len(x) > tokenizer_model_max_length for x in new_input_embeds):
-                warnings.warn("Inputs truncated!")
-            new_input_embeds = [x[:tokenizer_model_max_length] for x in new_input_embeds]
-            new_labels = [x[:tokenizer_model_max_length] for x in new_labels]
-        # Combine them
-        max_len = max(x.shape[0] for x in new_input_embeds)
-        # max_len = tokenizer_model_max_length
-        # print("Warning: using max_len as tokenizer_model_max_length")
-        batch_size = len(new_input_embeds)
-
-        new_input_embeds_padded = []
-        new_labels_padded = torch.full(
-            (batch_size, max_len),
-            IGNORE_INDEX,
-            dtype=new_labels[0].dtype,
-            device=new_labels[0].device,
-        )
-        attention_mask = torch.zeros(
-            (batch_size, max_len),
-            dtype=attention_mask.dtype,
-            device=attention_mask.device,
-        )
-        position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=position_ids.device)
-
-        for i, (cur_new_embed, cur_new_labels) in enumerate(zip(new_input_embeds, new_labels)):
-            cur_len = cur_new_embed.shape[0]
-            if getattr(self.llm.config, "tokenizer_padding_side", "right") == "left":
-                new_input_embeds_padded.append(
-                    torch.cat(
-                        (
-                            torch.zeros(
-                                (max_len - cur_len, cur_new_embed.shape[1]),
-                                dtype=cur_new_embed.dtype,
-                                device=cur_new_embed.device,
-                            ),
-                            cur_new_embed,
-                        ),
-                        dim=0,
-                    )
-                )
-                if cur_len > 0:
-                    new_labels_padded[i, -cur_len:] = cur_new_labels
-                    attention_mask[i, -cur_len:] = True
-                    position_ids[i, -cur_len:] = torch.arange(
-                        0, cur_len, dtype=position_ids.dtype, device=position_ids.device
-                    )
-            else:
-                new_input_embeds_padded.append(
-                    torch.cat(
-                        (
-                            cur_new_embed,
-                            torch.zeros(
-                                (max_len - cur_len, cur_new_embed.shape[1]),
-                                dtype=cur_new_embed.dtype,
-                                device=cur_new_embed.device,
-                            ),
-                        ),
-                        dim=0,
-                    )
-                )
-                if cur_len > 0:
-                    new_labels_padded[i, :cur_len] = cur_new_labels
-                    attention_mask[i, :cur_len] = True
-                    position_ids[i, :cur_len] = torch.arange(
-                        0, cur_len, dtype=position_ids.dtype, device=position_ids.device
-                    )
-
-        new_input_embeds = torch.stack(new_input_embeds_padded, dim=0)
-
-        # if sp_degree > 1:  # Handle sequence parallelism
-        #     if sp_rank not in self.global_seq_len:
-        #         self.global_seq_len[sp_rank] = position_ids.shape[-1]
-        #     else:
-        #         assert self.global_seq_len[sp_rank] == position_ids.shape[-1]
-
-        if _labels is None:
-            new_labels = None
-        else:
-            new_labels = new_labels_padded
-
-        if _attention_mask is None:
-            attention_mask = None
-        else:
-            attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
-
-        if _position_ids is None:
-            position_ids = None
-
-        # We will not use packing here when sequence parallelism is enabled.
-        if PROCESS_GROUP_MANAGER is not None:
-            return (
-                None,
-                _position_ids,
-                attention_mask,
-                past_key_values,
-                new_input_embeds,
-                new_labels,
-            )
-
-        return (
-            None,
-            position_ids,
-            attention_mask,
-            past_key_values,
-            new_input_embeds,
-            new_labels,
-        )
-
-    def repack_multimodal_data(
+    def _embed(
         self,
-        input_ids,
-        position_ids,
-        attention_mask,
-        past_key_values,
-        inputs_embeds,
-        labels,
-    ):
+        input_ids: torch.Tensor,
+        media: Dict[str, List[torch.Tensor]],
+        media_config: Dict[str, Dict[str, Any]],
+        labels: Optional[torch.Tensor],
+        attention_mask: Optional[torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        labels = labels if labels is not None else torch.full_like(input_ids, IGNORE_INDEX)
+        attention_mask = attention_mask if attention_mask is not None else torch.ones_like(input_ids, dtype=torch.bool)
+
+        # Extract text and media embeddings
+        text_embeds = self.llm.model.embed_tokens(input_ids)
+        media_embeds = self.__embed_media_tokens(media, media_config)
+
+        # This is a workaround to make sure the dummy embeddings are consumed
+        while media_embeds.get("dummy"):
+            dummy_embed = media_embeds["dummy"].popleft()
+            text_embeds += torch.sum(dummy_embed) * 0
+
+        # Remove padding
+        batch_size = labels.shape[0]
+        text_embeds = [text_embeds[k][attention_mask[k]] for k in range(batch_size)]
+        labels = [labels[k][attention_mask[k]] for k in range(batch_size)]
+
+        # Build inverse mapping from token ID to media name
+        media_tokens = {}
+        for name, token_id in self.tokenizer.media_token_ids.items():
+            media_tokens[token_id] = name
+
+        # Fuse text and media embeddings
+        inputs_m, labels_m = [], []
+        for k in range(batch_size):
+            inputs_mk, labels_mk = [], []
+            pos = 0
+            while pos < len(labels[k]):
+                if input_ids[k][pos].item() in media_tokens:
+                    end = pos + 1
+                    name = media_tokens[input_ids[k][pos].item()]
+                    input = media_embeds[name].popleft()
+                    label = torch.full([input.shape[0]], IGNORE_INDEX, device=labels[k].device, dtype=labels[k].dtype)
+                else:
+                    end = pos
+                    while end < len(labels[k]) and input_ids[k][end].item() not in media_tokens:
+                        end += 1
+                    input = text_embeds[k][pos:end]
+                    label = labels[k][pos:end]
+                inputs_mk.append(input)
+                labels_mk.append(label)
+                pos = end
+            inputs_m.append(torch.cat(inputs_mk, dim=0))
+            labels_m.append(torch.cat(labels_mk, dim=0))
+        inputs, labels = inputs_m, labels_m
+
+        # Check if all media embeddings are consumed
+        for name in media_embeds:
+            if media_embeds[name]:
+                raise ValueError(f"Not all {name} embeddings are consumed!")
+
+        # Truncate sequences to `model_max_length` as media embeddings are inserted
+        inputs, labels = self.__truncate_sequence(inputs, labels)
+
+        # Pad sequences to the longest one in the batch
+        return self.__batchify_sequence(inputs, labels)
+
+    def __embed_media_tokens(
+        self,
+        media: Dict[str, List[torch.Tensor]],
+        media_config: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, List[torch.Tensor]]:
+        embeds = defaultdict(deque)
+        for name in media:
+            if self.training:
+                # Gather metainfo of media objects from all ranks
+                info = [{"shape": tensor.shape, "dtype": tensor.dtype} for tensor in media.get(name, [])]
+                infos = list(chain(*dist.all_gather(info)))
+
+                # The entire batch does not contain any media objects of this type.
+                if not infos:
+                    continue
+
+                # Create a dummy tensor to ensure the encoder is called, otherwise the training will hang.
+                if not media.get(name):
+                    dummy = torch.zeros(infos[0]["shape"], dtype=infos[0]["dtype"], device=self.device)
+                    embeds["dummy"].extend(self.encoders[name]([dummy], media_config[name]))
+                    continue
+            embeds[name] = deque(self.encoders[name](media[name], media_config[name]))
+        return embeds
+
+    def __truncate_sequence(
+        self, inputs: List[torch.Tensor], labels: List[torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if any(len(input) > self.tokenizer.model_max_length for input in inputs):
+            warnings.warn(f"Truncating sequences to `model_max_length` ({self.tokenizer.model_max_length}).")
+            inputs = [input[: self.tokenizer.model_max_length] for input in inputs]
+            labels = [label[: self.tokenizer.model_max_length] for label in labels]
+        return inputs, labels
+
+    def __batchify_sequence(
+        self, inputs: List[torch.Tensor], labels: List[torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size = len(inputs)
+        device = inputs[0].device
+        hidden_size = inputs[0].shape[1]
+        max_length = max(inputs[k].shape[0] for k in range(batch_size))
+        attention_mask = torch.ones((batch_size, max_length), dtype=torch.bool, device=device)
+
+        inputs_p, labels_p = [], []
+        for k in range(batch_size):
+            size_pk = max_length - inputs[k].shape[0]
+            inputs_pk = torch.zeros((size_pk, hidden_size), dtype=inputs[k].dtype, device=device)
+            labels_pk = torch.full((size_pk,), IGNORE_INDEX, dtype=labels[k].dtype, device=device)
+            if self.tokenizer.padding_side == "right":
+                attention_mask[k, inputs[k].shape[0] :] = False
+                inputs_pk = torch.cat([inputs[k], inputs_pk], dim=0)
+                labels_pk = torch.cat([labels[k], labels_pk], dim=0)
+            else:
+                attention_mask[k, : -inputs[k].shape[0]] = False
+                inputs_pk = torch.cat([inputs_pk, inputs[k]], dim=0)
+                labels_pk = torch.cat([labels_pk, labels[k]], dim=0)
+            inputs_p.append(inputs_pk)
+            labels_p.append(labels_pk)
+
+        inputs = torch.stack(inputs_p, dim=0)
+        labels = torch.stack(labels_p, dim=0)
+        return inputs, labels, attention_mask
+
+    def repack_multimodal_data(self, inputs_embeds, attention_mask, position_ids, labels):
         # Handle sequence parallelism
         PROCESS_GROUP_MANAGER = get_pg_manager()
 
@@ -713,236 +709,160 @@ class LlavaMetaForCausalLM(ABC):
                     global_inputs_embeds, 1, start_idx_reshard, end_idx_reshard - start_idx_reshard
                 )
 
-            return (
-                None,
-                new_position_ids,
-                new_attention_mask,
-                past_key_values,
-                new_inputs_embeds,
-                new_labels,
-                None,  # sorted_seqlens_in_batch set as None for sequence parallelism
-            )
+            return new_inputs_embeds, new_attention_mask, new_position_ids, new_labels
 
-        # kentang-mit@: reorder and repack (reduce computation overhead)
-        # requires transformers replacement.
-        new_inputs_embeds = []
-        new_position_ids = []
-        new_labels = []
-        seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-        sorted_seqlens_in_batch, sorted_idx = torch.sort(seqlens_in_batch, descending=True)
-        max_seqlen = inputs_embeds.shape[1]
+        device = inputs_embeds.device
+        batch_size = inputs_embeds.shape[0]
+        seqlens = [attention_mask[k].sum().item() for k in range(batch_size)]
 
-        cur_inputs_embeds = []
-        cur_position_ids = []
-        cur_labels = []
-        cur_batch_len = 0
-        for i in range(len(sorted_seqlens_in_batch)):
-            cur_seqlen = sorted_seqlens_in_batch[i].item()
-            if cur_seqlen + cur_batch_len <= max_seqlen:
-                cur_batch_len += cur_seqlen
-                # each item: num_tokens x num_channels
-                # remove padding on-the-fly
-                cur_inputs_embeds.append(inputs_embeds[sorted_idx[i]][attention_mask[sorted_idx[i]]])
-                cur_position_ids.append(
-                    torch.arange(
-                        cur_inputs_embeds[-1].shape[0],
-                        device=cur_inputs_embeds[-1].device,
-                    )
+        # Pack all sequences together
+        inputs_embeds_p = [inputs_embeds[k][attention_mask[k]] for k in range(batch_size)]
+        attention_mask_p = [torch.ones(seqlens[k], dtype=torch.int, device=device) for k in range(batch_size)]
+        position_ids_p = [torch.arange(seqlens[k], dtype=torch.int, device=device) for k in range(batch_size)]
+        labels_p = [labels[k][attention_mask[k]] for k in range(batch_size)]
+
+        # Add one dummy token at the end of the packed sequence to ensure that `_get_unpacked_data` will be called
+        inputs_embeds_p.append(torch.zeros(1, inputs_embeds.shape[-1], dtype=inputs_embeds.dtype, device=device))
+        attention_mask_p.append(torch.tensor([0], dtype=torch.int, device=device))
+        position_ids_p.append(torch.tensor([0], dtype=torch.int, device=device))
+        labels_p.append(torch.tensor([IGNORE_INDEX], dtype=torch.int, device=device))
+
+        # Mask the first token of each sequence to avoid contamination
+        for label in labels_p:
+            label[0] = IGNORE_INDEX
+
+        # Batch the data
+        inputs_embeds_p = torch.cat(inputs_embeds_p, dim=0).unsqueeze(0)
+        attention_mask_p = torch.cat(attention_mask_p, dim=0).unsqueeze(0)
+        position_ids_p = torch.cat(position_ids_p, dim=0).unsqueeze(0)
+        labels_p = torch.cat(labels_p, dim=0).unsqueeze(0)
+
+        if hasattr(
+            self, "pad_to_multiple_of"
+        ):  # related to quantization, please refer to ModelArguments for more information.
+            assert len(labels_p.shape) == 2
+            batch_size, max_length, cur_length = labels_p.shape[0], labels_p.shape[1], labels_p.shape[1]
+            hidden_size = inputs_embeds_p.shape[-1]
+
+            if max_length % self.pad_to_multiple_of != 0:
+                max_length = ((max_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+                difference = max_length - cur_length
+
+                inputs_embeds_p = torch.cat(
+                    (
+                        inputs_embeds_p,
+                        torch.full((batch_size, difference, hidden_size), self.llm.pad_token_id).to(inputs_embeds_p),
+                    ),
+                    dim=1,
                 )
-                # each item: num_tokens
-                # remove padding on-the-fly
-                cur_labels.append(labels[sorted_idx[i]][attention_mask[sorted_idx[i]]])
-            else:
-                new_inputs_embeds.append(torch.cat(cur_inputs_embeds, 0))
-                new_position_ids.append(torch.cat(cur_position_ids, 0))
-                new_labels.append(torch.cat(cur_labels, 0))
-                # The current batch is too long. We will start a new batch.
-                cur_batch_len = cur_seqlen
-                cur_inputs_embeds = [inputs_embeds[sorted_idx[i]][attention_mask[sorted_idx[i]]]]
-                cur_position_ids = [
-                    torch.arange(
-                        cur_inputs_embeds[-1].shape[0],
-                        device=cur_inputs_embeds[-1].device,
-                    )
-                ]
-                cur_labels = [labels[sorted_idx[i]][attention_mask[sorted_idx[i]]]]
-            # Mask the first token in the labels for every sample
-            # cur_labels[-1][0] = IGNORE_INDEX
+                labels_p = torch.cat((labels_p, torch.full((batch_size, difference), IGNORE_INDEX).to(labels_p)), dim=1)
+                attention_mask_p = torch.cat(
+                    (
+                        attention_mask_p,
+                        torch.zeros((batch_size, difference), dtype=torch.bool).to(attention_mask_p),
+                    ),
+                    dim=1,
+                )
+                position_ids_p = torch.cat(
+                    (position_ids_p, torch.full((batch_size, difference), -1).to(position_ids_p)), dim=1
+                )
 
-        if len(cur_inputs_embeds):
-            new_inputs_embeds.append(torch.cat(cur_inputs_embeds, 0))
-            new_position_ids.append(torch.cat(cur_position_ids, 0))
-            new_labels.append(torch.cat(cur_labels, 0))
-
-        new_inputs_embeds = torch.nn.utils.rnn.pad_sequence(
-            new_inputs_embeds, batch_first=True, padding_value=self.llm.pad_token_id
-        )
-
-        new_position_ids = torch.nn.utils.rnn.pad_sequence(new_position_ids, batch_first=True, padding_value=-1)
-
-        new_labels = torch.nn.utils.rnn.pad_sequence(new_labels, batch_first=True, padding_value=IGNORE_INDEX)
-        ## yunhao: it's currently a workaround to avoid errors for seq_len < 100
-        new_attention_mask = new_position_ids.ne(-1)
-        # sanity check
-        assert new_attention_mask.sum() == attention_mask.sum()
-
-        # Handle sequence parallelism: Calculate the position ids for sequence parallelism
-        # NOTE: This implementation only works for [<bos>, <img>, ..., <img>, <caption>] pattern
-        # if sp_degree > 1 and sp_rank > 0:
-        #     cur_len = new_position_ids.shape[-1]
-        #     if sp_rank < sp_degree - 1:  # Intermediate ranks
-        #         offset = cur_len * sp_rank + 1
-        #         new_position_ids = new_position_ids + offset
-        #     elif sp_rank == sp_degree - 1:  # The last rank
-        #         assert new_labels[0, -1] != IGNORE_INDEX, "The first sequence should be longest one."
-        #         last_img_token_index = torch.where(new_labels[0] == IGNORE_INDEX)[0][-1]
-        #         # print(f"last_img_token_index, {last_img_token_index}")
-        #         # if sp_degree == 2: # Handle SP=2, because of bos_token
-        #         #     offset = last_img_token_index + 3
-        #         # else:
-        #         #     offset = (last_img_token_index + 2) * sp_rank + 1
-        #         offset = (last_img_token_index + 1) * sp_rank + 1
-        #         offset_mask = new_position_ids != -1
-        #         new_position_ids[offset_mask] += offset
-        #     else:
-        #         raise ValueError(f"sp_rank {sp_rank} is out of range {sp_degree}")
-
-        return (
-            None,
-            new_position_ids,
-            new_attention_mask,
-            past_key_values,
-            new_inputs_embeds,
-            new_labels,
-            sorted_seqlens_in_batch,
-        )
-
-    def initialize_vision_tokenizer(self, model_args, tokenizer):
-        if model_args.mm_use_im_patch_token:
-            tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
-            self.resize_token_embeddings(len(tokenizer))
-
-        if model_args.mm_use_im_start_end:
-            num_new_tokens = tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
-            self.resize_token_embeddings(len(tokenizer))
-
-            if num_new_tokens > 0:
-                input_embeddings = self.get_input_embeddings().weight.data
-                output_embeddings = self.get_output_embeddings().weight.data
-
-                input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-                output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-
-                input_embeddings[-num_new_tokens:] = input_embeddings_avg
-                output_embeddings[-num_new_tokens:] = output_embeddings_avg
-            ## TODO yunhao: handle cases for <im_st> <im_end>
-            if model_args.pretrain_mm_mlp_adapter:
-                mm_projector_weights = torch.load(model_args.pretrain_mm_mlp_adapter, map_location="cpu")
-                embed_tokens_weight = mm_projector_weights["model.embed_tokens.weight"]
-                assert num_new_tokens == 2
-                if input_embeddings.shape == embed_tokens_weight.shape:
-                    input_embeddings[-num_new_tokens:] = embed_tokens_weight[-num_new_tokens:]
-                elif embed_tokens_weight.shape[0] == num_new_tokens:
-                    input_embeddings[-num_new_tokens:] = embed_tokens_weight
-                else:
-                    raise ValueError(
-                        f"Unexpected embed_tokens_weight shape. Pretrained: {embed_tokens_weight.shape}. Current: {input_embeddings.shape}. Numer of new tokens: {num_new_tokens}."
-                    )
-        elif model_args.mm_use_im_patch_token:
-            if model_args.mm_projector:
-                for p in self.get_input_embeddings().parameters():
-                    p.requires_grad = False
-                for p in self.get_output_embeddings().parameters():
-                    p.requires_grad = False
+        return inputs_embeds_p, attention_mask_p, position_ids_p, labels_p
 
     @torch.inference_mode()
     def generate(
         self,
         input_ids: Optional[torch.FloatTensor] = None,
-        images: Optional[torch.FloatTensor] = None,
+        media: Optional[Dict[str, List[torch.Tensor]]] = None,
+        media_config: Dict[str, Dict[str, Any]] = None,
         attention_mask: Optional[torch.LongTensor] = None,
         **generation_kwargs,
     ):
-        if images is not None:
-            (_, _, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(
-                input_ids, None, attention_mask, None, None, images
-            )
-        else:
-            inputs_embeds = self.get_input_embeddings()(input_ids)
-        inputs_embeds = inputs_embeds.to(self.dtype)
-
-        outputs = self.llm.generate(inputs_embeds=inputs_embeds, attention_mask=attention_mask, **generation_kwargs)
-        return outputs
+        inputs_embeds, _, attention_mask = self._embed(input_ids, media, media_config, None, attention_mask)
+        return self.llm.generate(inputs_embeds=inputs_embeds, attention_mask=attention_mask, **generation_kwargs)
 
     @torch.inference_mode()
     def generate_content(self, prompt: Union[str, List], generation_config: Optional[GenerationConfig] = None) -> str:
-        if isinstance(prompt, str):
-            prompt = [prompt]
+        # TODO(zhijianl): Support directly taking conversation as input
+        conversation = [{"from": "human", "value": prompt}]
 
-        # TODO(zhijianl): This logic will be moved to model forward function
-        if self.config.mm_use_im_start_end:
-            image_token = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN
-        else:
-            image_token = DEFAULT_IMAGE_TOKEN
+        # Extract media from the conversation
 
-        # Process the prompt
-        text = ""
-        images = []
-        for element in prompt:
-            if isinstance(element, str):
-                text += element
-            elif isinstance(element, (Image.Image, modals.Image)):
-                if isinstance(element, modals.Image):
-                    element = Image.open(element.path)
-                text += image_token + "\n"
-                images.append(element)
-            elif isinstance(element, modals.Video):
-                frames, _ = opencv_extract_frames(
-                    element.path,
-                    self.config.num_video_frames,
-                    getattr(self.config, "fps") or 0,
-                )
-                if not frames:
-                    raise ValueError(f"Video {element.path} has no frames")
+        # TODO (extract and preprocess should be done together, as the preprocess of image and video can be different, i.e. when dynamic res is used)
+        media = extract_media(conversation, self.config)
 
-                text += (image_token + "\n") * len(frames)
-                images.extend(frames)
+        # Process media
+        media_config = defaultdict(dict)
+        for name in media:
+            if name == "image":
+                if len(media["image"]) == 1 and self.config.image_aspect_ratio in ["dynamic", "dynamic_s2"]:
+                    self.config.image_processor = self.vision_tower.image_processor
+                    if self.config.image_aspect_ratio == "dynamic":
+                        images = process_image(media["image"][0], self.config, None, enable_dynamic_res=True).half()
+                        conversation[0]["value"] = conversation[0]["value"].replace(
+                            DEFAULT_IMAGE_TOKEN, f"{DEFAULT_IMAGE_TOKEN}\n" * images.shape[0]
+                        )
+                    else:
+                        if type(self.config.s2_scales) is str:
+                            self.config.s2_scales = list(map(int, self.config.s2_scales.split(",")))
+                        images, block_sizes = process_image(
+                            media["image"][0], self.config, None, enable_dynamic_s2=True
+                        )
+                        images = images.half()
+                        media_config[name]["block_sizes"] = [block_sizes]
+                else:
+                    images = process_images(media["image"], self.vision_tower.image_processor, self.config).half()
+                media[name] = [image for image in images]
+            elif name == "video":
+                media[name] = [
+                    process_images(images, self.vision_tower.image_processor, self.config).half()
+                    for images in media[name]
+                ]
             else:
-                raise ValueError(f"Unsupported prompt element type: {type(element)}")
+                raise ValueError(f"Unsupported media type: {name}")
 
         # Tokenize the conversation
-        chat = [{"from": "human", "value": text}]
-        input_ids = tokenize_conversation(chat, self.tokenizer, add_generation_prompt=True).cuda().unsqueeze(0)
-
-        # Process the images
-        if images:
-            images = process_images(images, self.vision_tower.image_processor, self.config).cuda().half()
-        else:
-            images = None
+        input_ids = tokenize_conversation(conversation, self.tokenizer, add_generation_prompt=True).cuda().unsqueeze(0)
 
         # Set up the generation config
-        if generation_config is None:
-            generation_config = self.generation_config
-        if self.tokenizer.eos_token_id is None:
-            raise ValueError("Tokenizer must have an EOS token")
-        if generation_config.pad_token_id is None:
-            generation_config.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
-        if generation_config.bos_token_id is None:
-            generation_config.bos_token_id = self.tokenizer.bos_token_id or self.tokenizer.eos_token_id
-        if generation_config.eos_token_id is None:
-            generation_config.eos_token_id = self.tokenizer.convert_tokens_to_ids(infer_stop_tokens(self.tokenizer))
+        generation_config = generation_config or self.default_generation_config
 
         # Generate the response
         try:
-            output_ids = self.generate(input_ids=input_ids, images=images, generation_config=generation_config)
+            output_ids = self.generate(
+                input_ids=input_ids,
+                media=media,
+                media_config=media_config,
+                generation_config=generation_config,
+            )
         except ValueError:
             if not generation_config.do_sample:
                 raise
             # FIXME(zhijianl): This is a temporary workaround for the sampling issue
             logging.warning("Generation failed with sampling, retrying with greedy decoding.")
             generation_config.do_sample = False
-            output_ids = self.generate(input_ids=input_ids, images=images, generation_config=generation_config)
+            output_ids = self.generate(
+                input_ids=input_ids,
+                media=media,
+                media_config=media_config,
+                generation_config=generation_config,
+            )
 
         # Decode the response
         response = self.tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
         return response
+
+    @property
+    def default_generation_config(self) -> GenerationConfig:
+        generation_config = copy.deepcopy(self.generation_config or GenerationConfig())
+        if self.tokenizer.eos_token_id is None:
+            raise ValueError("Tokenizer must have an EOS token")
+        if generation_config.max_length == GenerationConfig().max_length:
+            generation_config.max_length = self.tokenizer.model_max_length
+        if generation_config.pad_token_id is None:
+            generation_config.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        if generation_config.bos_token_id is None:
+            generation_config.bos_token_id = self.tokenizer.bos_token_id or self.tokenizer.eos_token_id
+        if generation_config.eos_token_id is None:
+            generation_config.eos_token_id = self.tokenizer.stop_token_ids
+        return generation_config

@@ -146,9 +146,6 @@ class UlyssesAttention(torch.nn.Module):
         Returns:
             * output (Tensor): context output
         """
-        # TODO Merge three alltoall calls into one
-        # TODO (Reza): change the api on the megatron-deepspeed side so that we only receive all data (q,k, and v) together!
-        # in shape : e.g.,  [s/p:h:]
         # (bs, seq_len/N, head_cnt, head_size) -> (bs, seq_len, head_cnt/N, head_size)
 
         # KV Replication for GQA
@@ -221,10 +218,6 @@ class UlyssesAttention(torch.nn.Module):
                 dropout_p=dropout_p,
                 softmax_scale=softmax_scale,
                 causal=causal,
-                # window_size=window_size,
-                # alibi_slopes=alibi_slopes,
-                # deterministic=deterministic,
-                # return_attn_probs=return_attn_probs,
             )
         if isinstance(context_layer, tuple):
             context_layer = context_layer[0]

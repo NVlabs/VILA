@@ -20,13 +20,7 @@ from PIL.Image import Image
 from pydantic import BaseModel
 from transformers.generation.streamers import TextIteratorStreamer
 
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IMAGE_PLACEHOLDER,
-    IMAGE_TOKEN_INDEX,
-)
+from llava.constants import DEFAULT_IMAGE_TOKEN
 from llava.conversation import SeparatorStyle, conv_templates
 from llava.mm_utils import KeywordsStoppingCriteria, get_model_name_from_path, process_images, tokenizer_image_token
 from llava.model.builder import load_pretrained_model
@@ -110,13 +104,6 @@ VILA_MODELS = get_literal_values(ChatCompletionRequest, "model")
 
 
 def normalize_image_tags(qs: str) -> str:
-    image_token_se = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN
-    if IMAGE_PLACEHOLDER in qs:
-        if model.config.mm_use_im_start_end:
-            qs = re.sub(IMAGE_PLACEHOLDER, image_token_se, qs)
-        else:
-            qs = re.sub(IMAGE_PLACEHOLDER, DEFAULT_IMAGE_TOKEN, qs)
-
     if DEFAULT_IMAGE_TOKEN not in qs:
         print("No image was found in input messages. Continuing with text only prompt.")
     return qs
@@ -175,8 +162,7 @@ async def chat_completions(request: ChatCompletionRequest):
                         if content.type == "image_url":
                             image = load_image(content.image_url.url)
                             images.append(image)
-                            prompt += IMAGE_PLACEHOLDER
-
+                            prompt += DEFAULT_IMAGE_TOKEN
                 normalized_prompt = normalize_image_tags(prompt)
                 conv.append_message(user_role, normalized_prompt)
             if message.role == "assistant":
@@ -197,11 +183,7 @@ async def chat_completions(request: ChatCompletionRequest):
             images_tensor = process_images(images, image_processor, model.config).to(model.device, dtype=torch.float16)
             images_input = [images_tensor]
 
-        input_ids = (
-            tokenizer_image_token(prompt_text, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
-            .unsqueeze(0)
-            .to(model.device)
-        )
+        input_ids = tokenizer_image_token(prompt_text, tokenizer, return_tensors="pt").unsqueeze(0).to(model.device)
 
         stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
         keywords = [stop_str]

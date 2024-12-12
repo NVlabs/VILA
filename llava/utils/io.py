@@ -2,7 +2,6 @@ import json
 import os
 import pickle
 from contextlib import contextmanager
-from io import TextIOWrapper
 from typing import IO, Any, BinaryIO, Callable, Dict, Iterator, TextIO, Union
 
 import numpy as np
@@ -39,7 +38,6 @@ def file_descriptor(f: Union[str, IO], mode: str = "r") -> Iterator[IO]:
         yield f
     finally:
         if opened:
-            assert isinstance(f, TextIOWrapper), type(f)
             f.close()
 
 
@@ -125,7 +123,18 @@ def save_yaml(f: Union[str, TextIO], obj: Any, **kwargs) -> None:
         yaml.safe_dump(obj, fd, **kwargs)
 
 
+def load_txt(f: Union[str, TextIO]) -> Any:
+    with file_descriptor(f, mode="r") as fd:
+        return fd.read()
+
+
+def save_txt(f: Union[str, TextIO], obj: Any, **kwargs) -> None:
+    with file_descriptor(f, mode="w") as fd:
+        fd.write(obj)
+
+
 __io_registry: Dict[str, Dict[str, Callable]] = {
+    ".txt": {"load": load_txt, "save": save_txt},
     ".json": {"load": load_json, "save": save_json},
     ".jsonl": {"load": load_jsonl, "save": save_jsonl},
     ".mat": {"load": load_mat, "save": save_mat},

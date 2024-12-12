@@ -41,15 +41,7 @@ from torchvision.transforms import Resize
 
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
 from llava.data.dataset import LazySupervisedDataset
-from llava.data.datasets_mixture import DATASETS
 from llava.data.simple_vila_webdataset import VILAWebDataset
 from llava.mm_utils import is_gemma_tokenizer, tokenizer_image_token
 from llava.model import *
@@ -89,7 +81,10 @@ class LazyCoyoWebRecapDataset(LazyCoyoWebDataset):
             n_samples_per_idx=n_samples_per_idx,
         )
         if getattr(data_args, "caption_choice", None) is None:
+            self.caption_choice = "~/workspace/coyo-25m-recap"
+            # nvcode: on
             self.caption_choice = "/home/ligengz/workspace/coyo-25m-recap"
+            # nvcode: off
         else:
             self.caption_choice = data_args.caption_choice
         print(f"Current caption choice: {self.caption_choice}.")

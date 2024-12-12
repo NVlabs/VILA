@@ -48,23 +48,12 @@ from torchvision.transforms import Resize
 
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
 from llava.data.dataset import LazySupervisedDataset
 from llava.data.dataset_impl.textocr import GenericDataset, preprocess_OCR
-from llava.data.datasets_mixture import DATASETS
 from llava.data.simple_vila_webdataset import VILAWebDataset
 from llava.data.utils import VILAEncodedVideo
 from llava.mm_utils import is_gemma_tokenizer, tokenizer_image_token
 from llava.train.args import DataArguments, TrainingArguments
-
-# DEFAULT_HIERTEXT = "/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m"
-# SPLIT = "panda70m_testing"
 
 
 def str2time(s):
@@ -127,11 +116,7 @@ class VILAPanda70m(Dataset):
         data_path = osp.expanduser(data_path)
         # self.dataset = VILAWebDataset(data_path)
         self.dataset = VILAWebDataset(
-            # data_path="~/nvr_elm_llm/dataset/panda70m/webdataset",
-            # data_path="~/nvr_elm_llm/dataset/panda70m/wds-testing",
-            # data_path="~/nvr_elm_llm/dataset/panda70m/wds-training_2m",
             data_path=data_path,
-            # meta_path="~/nvr_elm_llm/dataset/panda70m/webdataset/wids-mini.json",
         )
 
         self.data_path = data_path
@@ -195,7 +180,7 @@ def with_opencv(filename):
 
 
 def cleanup_corrupted_videos(
-    workdir="~/nvr_elm_llm/dataset/panda70m/panda70m_training_2m",
+    workdir="~/dataset/panda70m/panda70m_training_2m",
     shards=0,
     total=-1,
 ):
@@ -236,31 +221,11 @@ def cleanup_corrupted_videos(
 
 
 if __name__ == "__main__":
-    # WORKDIR=osp.expanduser("~/nvr_elm_llm/dataset/panda70m/panda70m_testing")
-    # cleanup_corrupted_videos()
     import fire
 
     fire.Fire(cleanup_corrupted_videos)
     exit(0)
 
-    # video_path = osp.expanduser(f"{WORKDIR}/WxTjy7RY2yA.mp4")
-    # json_path = osp.expanduser(f"{WORKDIR}/WxTjy7RY2yA.json")
     jinfo = json.load(open(json_path))
     img_t = load_video(video_path, jinfo=jinfo)
     print(img_t)
-
-    # # print(jinfo["timestamp"][0])
-    # s1 = datetime.strptime(jinfo["timestamp"][0][0], "%H:%M:%S.%f")
-    # s2 = datetime.strptime(jinfo["timestamp"][0][1], "%H:%M:%S.%f")
-    # print(type(s2-s1))
-    # print((s2 - s1).total_seconds())
-
-    # dst = VILAWebDataset(
-    #     data_path="~/nvr_elm_llm/dataset/panda70m/webdataset",
-    #     meta_path="~/nvr_elm_llm/dataset/panda70m/webdataset/wids-mini.json",
-    # )
-
-    # video_path = dst[0][".mp4"]
-    # jinfo = dst[0][".json"]
-    # img, cap, secs = load_video(video_path, jfino=jinfo)
-    # print(img.shape, cap, secs)

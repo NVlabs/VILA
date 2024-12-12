@@ -1,2 +1,2 @@
 from .entry import *
-from .modals import *
+from .media import *

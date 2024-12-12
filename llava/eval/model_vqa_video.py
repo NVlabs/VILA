@@ -15,7 +15,6 @@ from torchvision.transforms import Resize
 from tqdm import tqdm
 
 from llava import conversation as conversation_lib
-from llava.constants import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
 from llava.conversation import SeparatorStyle, conv_templates
 from llava.data.dataset import LazySupervisedDataset
 from llava.mm_utils import (
@@ -80,7 +79,6 @@ def get_model_output(model, image_processor, tokenizer, video_path, qs, args):
     input_ids = tokenizer_image_token(
         prompt,
         tokenizer,
-        image_token_index=IMAGE_TOKEN_INDEX,
         return_tensors="pt",
     )
     input_ids = torch.unsqueeze(input_ids, 0)

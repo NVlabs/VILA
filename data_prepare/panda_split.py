@@ -52,22 +52,14 @@ from torchvision.transforms import Resize
 
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
 from llava.data.dataset import LazySupervisedDataset
 from llava.data.dataset_impl.textocr import GenericDataset, preprocess_OCR
-from llava.data.datasets_mixture import DATASETS
 from llava.data.simple_vila_webdataset import VILAWebDataset
 from llava.data.utils import VILAEncodedVideo
 from llava.mm_utils import is_gemma_tokenizer, tokenizer_image_token
 from llava.train.args import DataArguments, TrainingArguments
 
-DEFAULT_HIERTEXT = "/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m"
+DEFAULT_HIERTEXT = "~/dataset/panda70m"
 SPLIT = "panda70m_testing"
 
 
@@ -80,7 +72,7 @@ def with_opencv(filename):
 
 
 def split_video_to_clips(
-    workdir=osp.expanduser("~/nvr_elm_llm/dataset/panda70m/panda70m_training_2m"),
+    workdir=osp.expanduser("~/dataset/panda70m/panda70m_training_2m"),
     shards=0,
     total=-1,
 ):
@@ -110,7 +102,7 @@ def split_video_to_clips(
 
 
 if __name__ == "__main__":
-    # WORKDIR=osp.expanduser("~/nvr_elm_llm/dataset/panda70m/panda70m_testing")
+    # WORKDIR=osp.expanduser("~/dataset/panda70m/panda70m_testing")
     # cleanup_corrupted_videos()
     import fire
 

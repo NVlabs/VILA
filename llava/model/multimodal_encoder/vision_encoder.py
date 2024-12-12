@@ -20,7 +20,9 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from accelerate.hooks import add_hook_to_module
+from einops import rearrange
 from s2wrapper import forward as multiscale_forward
 from transformers import AutoConfig, PreTrainedModel
 from transformers.image_processing_utils import BaseImageProcessor
@@ -182,8 +184,8 @@ class VisionTowerS2(VisionTower):
         self.scales = list(map(int, args.s2_scales.split(",")))
         self.scales.sort()
         self.max_split_size = args.s2_max_split_size
+        self.resize_output_to_scale_idx = getattr(args, "s2_resize_output_to_scale_idx", 0)
 
-    @torch.no_grad()
     def forward_feature(self, images):
         image_forward_outs = self.vision_tower(
             images.to(device=self.device, dtype=self.dtype), output_hidden_states=True
@@ -191,19 +193,54 @@ class VisionTowerS2(VisionTower):
         image_features = self.feature_select(image_forward_outs).to(images.dtype)
         return image_features
 
-    @torch.no_grad()
     def forward(self, images):
         if type(images) is list:
             image_features = []
             for image in images:
                 image_feature = multiscale_forward(
-                    self.forward_feature, image.unsqueeze(0), img_sizes=self.scales, max_split_size=self.max_split_size
+                    self.forward_feature,
+                    image.unsqueeze(0),
+                    img_sizes=self.scales,
+                    max_split_size=self.max_split_size,
+                    resize_output_to_idx=self.resize_output_to_scale_idx,
                 )
                 image_features.append(image_feature)
         else:
             image_features = multiscale_forward(
-                self.forward_feature, images, img_sizes=self.scales, max_split_size=self.max_split_size
+                self.forward_feature,
+                images,
+                img_sizes=self.scales,
+                max_split_size=self.max_split_size,
+                resize_output_to_idx=self.resize_output_to_scale_idx,
             )
+
+        return image_features
+
+    @property
+    def hidden_size(self):
+        return self.config.hidden_size * len(self.scales)
+
+
+class VisionTowerDynamicS2(VisionTower):
+    def __init__(self, vision_tower, args, delay_load=False):
+        super().__init__(vision_tower, args, delay_load)
+
+        self.scales = list(map(int, args.s2_scales.split(",")))
+        self.scales.sort()
+        self.max_split_size = args.s2_max_split_size
+        self.resize_output_to_scale_idx = getattr(args, "s2_resize_output_to_scale_idx", 0)
+
+    def forward_feature(self, images):
+        image_forward_outs = self.vision_tower(
+            images.to(device=self.device, dtype=self.dtype), output_hidden_states=True
+        )
+        image_features = self.feature_select(image_forward_outs).to(images.dtype)
+        return image_features
+
+    def forward(self, images):
+        assert type(images) is not list
+
+        image_features = self.forward_feature(images)
 
         return image_features
 

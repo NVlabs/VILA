@@ -1,0 +1,413 @@
+---
+cinepile:
+    tags:
+        - local
+        - regression
+    metrics:
+        accuracy: overall
+
+egoschema_test:
+    tags:
+        - submission
+
+egoschema_val:
+    tags:
+        - core
+        - local
+    metrics:
+        accuracy: accuracy
+
+eventbench_val:
+    tags:
+        - core
+        - local
+    metrics:
+        accuracy: accuracy
+
+vnbench_val:
+    tags:
+        - core
+        - local
+    metrics:
+        accuracy: accuracy
+
+lmms-activitynetqa:
+    tags:
+        - openai
+    metrics:
+        accuracy: results/activitynetqa/gpt_eval_accuracy,none
+        score: results/activitynetqa/gpt_eval_score,none
+
+lmms-ai2d:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/ai2d/exact_match,flexible-extract
+
+lmms-ai2d_no_mask:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/ai2d_no_mask/exact_match,flexible-extract
+
+lmms-chartqa:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        overall: results/chartqa/relaxed_overall,none
+        human: results/chartqa/relaxed_human_split,none
+        augmented: results/chartqa/relaxed_augmented_split,none
+
+lmms-docvqa_test:
+    tags:
+        - submission
+
+lmms-docvqa_val:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/docvqa_val/anls,none
+
+lmms-gqa:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/gqa/exact_match,none
+
+lmms-infovqa_test:
+    tags:
+        - submission
+
+lmms-infovqa_val:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/infovqa_val/anls,none
+
+lmms-llava_in_the_wild:
+    tags:
+        - core
+        - openai
+    metrics:
+        accuracy: results/llava_in_the_wild/gpt_eval_llava_all,none
+
+lmms-longvideobench_test_v:
+    tags:
+        - submission
+
+lmms-longvideobench_val_v:
+    tags:
+        - local
+    metrics:
+        accuracy: results/longvideobench_val_v/lvb_acc,none
+
+lmms-mmbench:
+    tags:
+        - core
+        - submission
+
+lmms-mme:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        cognition: results/mme/mme_cognition_score,none
+        perception: results/mme/mme_percetion_score,none
+
+lmms-mmmu_pro:
+    tags:
+        - core
+        - local
+    metrics:
+        vision: results/mmmu_pro_vision/mmmu_acc,none
+        standard: results/mmmu_pro_standard/mmmu_acc,none
+
+lmms-mmmu_test:
+    tags:
+        - core
+        - submission
+
+lmms-mmmu_val:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/mmmu_val/mmmu_acc,none
+
+lmms-mmvet:
+    tags:
+        - core
+        - openai
+
+lmms-mvbench:
+    tags:
+        - local
+    metrics:
+        as: results/mvbench_action_sequence/mvbench_accuracy,none
+        ap: results/mvbench_action_prediction/mvbench_accuracy,none
+        aa: results/mvbench_action_antonym/mvbench_accuracy,none
+        fa: results/mvbench_fine_grained_action/mvbench_accuracy,none
+        ua: results/mvbench_unexpected_action/mvbench_accuracy,none
+        oe: results/mvbench_object_existence/mvbench_accuracy,none
+        oi: results/mvbench_object_interaction/mvbench_accuracy,none
+        os: results/mvbench_object_shuffle/mvbench_accuracy,none
+        md: results/mvbench_moving_direction/mvbench_accuracy,none
+        al: results/mvbench_action_localization/mvbench_accuracy,none
+        st: results/mvbench_scene_transition/mvbench_accuracy,none
+        ac: results/mvbench_action_count/mvbench_accuracy,none
+        mc: results/mvbench_moving_count/mvbench_accuracy,none
+        ma: results/mvbench_moving_attribute/mvbench_accuracy,none
+        sc: results/mvbench_state_change/mvbench_accuracy,none
+        fp: results/mvbench_fine_grained_pose/mvbench_accuracy,none
+        co: results/mvbench_character_order/mvbench_accuracy,none
+        en: results/mvbench_egocentric_navigation/mvbench_accuracy,none
+        er: results/mvbench_episodic_reasoning/mvbench_accuracy,none
+        ci: results/mvbench_counterfactual_inference/mvbench_accuracy,none
+
+lmms-nextqa_oe_test:
+    tags:
+        - submission
+
+lmms-nextqa_mc_test:
+    tags:
+        - local
+    metrics:
+        accuracy: results/nextqa_mc_test
+
+lmms-nextqa_oe_val:
+    tags:
+        - local
+    metrics:
+        wups: results/nextqa_oe_val/WUPS,none
+
+lmms-ocrbench:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/ocrbench/ocrbench_accuracy,none
+
+lmms-perceptiontest_val_mc:
+    tags:
+        - local
+    metrics:
+        accuracy: results/perceptiontest_val_mc/accuracy,none
+
+lmms-pope:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/pope/pope_accuracy,none
+        precision: results/pope/pope_precision,none
+        recall: results/pope/pope_recall,none
+        f1: results/pope/pope_f1_score,none
+
+lmms-realworldqa:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: results/realworldqa/exact_match,flexible-extract
+
+lmms-seedbench:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        all: results/seedbench/seed_all,none
+        image: results/seedbench/seed_image,none
+        video: results/seedbench/seed_video,none
+
+lmms-scienceqa_full:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        full: results/scienceqa/exact_match,none
+        image: results/scienceqa_img/exact_match,none
+
+lmms-textvqa_test:
+    tags:
+        - submission
+
+lmms-textvqa_val:
+    tags:
+        - core
+        - local
+    metrics:
+        accuracy: results/textvqa_val/exact_match,none
+
+lmms-videochatgpt:
+    tags:
+        - openai
+    metrics:
+        correctness: results/videochatgpt/gpt_eval_score_correctness,none
+        detailed: results/videochatgpt/gpt_eval_score_detailed_orientation,none
+        contextural: results/videochatgpt/gpt_eval_score_context,none
+        temporal: results/videochatgpt/gpt_eval_score_temporal,none
+        consistency: results/videochatgpt/gpt_eval_score_consistency,none
+
+lmms-videomme-8:
+    tags:
+        - local
+        - video
+        - regression
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-8:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-videomme-16:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-16:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-videomme-32:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-32:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-videomme-64:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-64:
+    tags:
+        - local
+        - video
+        - regression
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-videomme-128:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-128:
+    tags:
+        - local
+        - video
+        - regression
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-videomme-256:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-256:
+    tags:
+        - local
+        - video
+        - regression
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-videomme-512:
+    tags:
+        - local
+        - video
+    metrics:
+        accuracy: results/videomme/videomme_percetion_score,none
+
+lmms-videomme_w_subtitle-512:
+    tags:
+        - local
+        - video
+        - regression
+    metrics:
+        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+
+lmms-vizwiz_vqa_test:
+    tags:
+        - core
+        - submission
+
+lmms-vizwiz_vqa_val:
+    tags:
+        - local
+    metrics:
+        accuracy: results/vizwiz_vqa_val/exact_match,none
+
+lmms-vqav2_test:
+    tags:
+        - core
+        - submission
+
+lmms-vqav2_val:
+    tags:
+        - local
+        - regression
+    metrics:
+        accuracy: results/vqav2_val/exact_match,none
+
+mathvista_test:
+    tags:
+        - submission
+
+mathvista_testmini:
+    tags:
+        - core
+        - local
+    metrics:
+        accuracy: average/accuracy
+
+textvqa_val:
+    tags:
+        - core
+        - local
+        - regression
+    metrics:
+        accuracy: accuracy

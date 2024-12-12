@@ -22,7 +22,7 @@ from transformers.image_processing_utils import BaseImageProcessor
 
 from llava.model.multimodal_encoder.intern.configuration_intern_vit import InternVisionConfig
 from llava.model.multimodal_encoder.intern.modeling_intern_vit import InternVisionModel
-from llava.model.multimodal_encoder.vision_encoder import VisionTower
+from llava.model.multimodal_encoder.vision_encoder import VisionTower, VisionTowerS2
 
 
 def build_transform(input_size):
@@ -38,12 +38,16 @@ def build_transform(input_size):
 
 
 class InternVisionPreprocessor(BaseImageProcessor):
+    def __init__(self, resize_size=448):
+        super().__init__()
+        self.resize_size = resize_size
+
     @property
     def size(self):
-        return {"height": 448, "width": 448}
+        return {"height": self.resize_size, "width": self.resize_size}
 
     def preprocess(self, image, return_tensors):
-        transform = build_transform(448)
+        transform = build_transform(self.resize_size)
         if isinstance(image, list):
             image_tensor = [transform(img) for img in image]
             return {"pixel_values": image_tensor}
@@ -58,6 +62,21 @@ class InternVisionTower(VisionTower):
         self._drop_path_rate = drop_path_rate
 
         self.image_processor = InternVisionPreprocessor()
+        vision_config = InternVisionConfig.from_pretrained(vision_tower)
+        vision_config.drop_path_rate = self._drop_path_rate
+        self.vision_tower = InternVisionModel.from_pretrained(
+            vision_tower, torch_dtype=eval(config.model_dtype), config=vision_config
+        )
+
+        self.is_loaded = True
+
+
+class InternVisionTowerS2(VisionTowerS2):
+    def __init__(self, vision_tower, config, drop_path_rate=0.0):
+        super().__init__(vision_tower, config)
+        self._drop_path_rate = drop_path_rate
+
+        self.image_processor = InternVisionPreprocessor(resize_size=self.scales[-1])
         vision_config = InternVisionConfig.from_pretrained(vision_tower)
         vision_config.drop_path_rate = self._drop_path_rate
         self.vision_tower = InternVisionModel.from_pretrained(

@@ -21,9 +21,9 @@ import os
 from transformers import AutoConfig, PretrainedConfig, PreTrainedModel
 
 from .clip_encoder import CLIPVisionTower, CLIPVisionTowerS2
-from .intern_encoder import InternVisionTower
+from .intern_encoder import InternVisionTower, InternVisionTowerS2
 from .radio_encoder import RADIOVisionTower
-from .siglip_encoder import SiglipVisionTower, SiglipVisionTowerS2
+from .siglip_encoder import SiglipVisionTower, SiglipVisionTowerDynamicS2, SiglipVisionTowerS2
 
 
 def build_vision_tower(model_name_or_path: str, config: PretrainedConfig) -> PreTrainedModel:
@@ -39,12 +39,14 @@ def build_vision_tower(model_name_or_path: str, config: PretrainedConfig) -> Pre
     vision_tower_name = vision_tower_arch if vision_tower_arch is not None else model_name_or_path
 
     use_s2 = getattr(config, "s2", False)
+    use_dynamic_s2 = getattr(config, "dynamic_s2", False)
 
     if "intern" in vision_tower_name.lower():
-        if hasattr(config, "drop_path_rate"):
-            vision_tower = InternVisionTower(model_name_or_path, config=config, drop_path_rate=config.drop_path_rate)
+        drop_path_rate = getattr(config, "drop_path_rate", 0.0)
+        if use_s2:
+            vision_tower = InternVisionTowerS2(model_name_or_path, config=config, drop_path_rate=drop_path_rate)
         else:
-            vision_tower = InternVisionTower(model_name_or_path, config=config, drop_path_rate=0.0)
+            vision_tower = InternVisionTower(model_name_or_path, config=config, drop_path_rate=drop_path_rate)
     elif "radio" in vision_tower_name:
         vision_tower = RADIOVisionTower(model_name_or_path, config)
     elif "clip" in vision_tower_name:
@@ -53,12 +55,16 @@ def build_vision_tower(model_name_or_path: str, config: PretrainedConfig) -> Pre
         else:
             vision_tower = CLIPVisionTower(model_name_or_path, config)
     elif "siglip" in vision_tower_name:
-        if use_s2:
+        if use_dynamic_s2:
+            vision_tower = SiglipVisionTowerDynamicS2(model_name_or_path, config)
+        elif use_s2:
             vision_tower = SiglipVisionTowerS2(model_name_or_path, config)
         else:
             vision_tower = SiglipVisionTower(model_name_or_path, config)
     else:
         raise ValueError(f"Unknown vision tower: {model_name_or_path}")
 
-    config.mm_hidden_size = vision_tower.config.hidden_size if not use_s2 else vision_tower.hidden_size
+    config.mm_hidden_size = (
+        vision_tower.config.hidden_size if not (use_s2 or use_dynamic_s2) else vision_tower.hidden_size
+    )
     return vision_tower

@@ -14,15 +14,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 import torch
 import transformers
 
 from llava import conversation as conversation_lib
-from llava.constants import IGNORE_INDEX
+from llava.constants import IGNORE_INDEX, SENTINEL_TOKEN
 from llava.mm_utils import tokenizer_image_token
+from llava.utils.logging import logger
 
 __all__ = [
     "tokenize_conversation",
@@ -30,8 +30,6 @@ __all__ = [
     "infer_stop_tokens",
 ]
 
-
-SENTINEL = "[VILA-SENTINEL]"
 DUMMY_CONVERSATION = [
     {"from": "human", "value": "question"},
     {"from": "gpt", "value": "answer"},
@@ -78,6 +76,10 @@ def tokenize_conversation(
     overrides: Optional[Dict[str, str]] = None,
     no_system_prompt: bool = False,
 ) -> torch.Tensor:
+    # Normalize the conversation before tokenization
+    for message in messages:
+        message["value"] = message["value"].strip()
+
     if conversation_lib.default_conversation.sep_style != conversation_lib.SeparatorStyle.AUTO:
         return tokenize_conversation_legacy(
             messages,
@@ -86,9 +88,6 @@ def tokenize_conversation(
             overrides=overrides,
             no_system_prompt=no_system_prompt,
         )
-
-    if no_system_prompt:
-        raise NotImplementedError("The `no_system_prompt` option is not supported by the current tokenizer.")
 
     conversation = []
     for m in messages:
@@ -105,6 +104,9 @@ def tokenize_conversation(
             message["content"] = overrides[m["from"]]
         conversation.append(message)
 
+    if no_system_prompt:
+        conversation = [{"role": "system", "content": None}] + conversation
+
     text = tokenizer.apply_chat_template(
         conversation,
         add_generation_prompt=add_generation_prompt,
@@ -113,26 +115,36 @@ def tokenize_conversation(
     return tokenizer_image_token(text, tokenizer, return_tensors="pt")
 
 
+def _maybe_add_sentinel_token(tokenizer: transformers.PreTrainedTokenizer) -> None:
+    if not hasattr(tokenizer, "sentinel_token"):
+        tokenizer.add_tokens([SENTINEL_TOKEN], special_tokens=True)
+        tokenizer.sentinel_token = SENTINEL_TOKEN
+        tokenizer.sentinel_token_id = tokenizer.convert_tokens_to_ids(SENTINEL_TOKEN)
+
+
 def preprocess_conversation(
     conversation: Sequence[Dict[str, str]],
     tokenizer: transformers.PreTrainedTokenizer,
     no_system_prompt: bool = False,
+    retried: bool = False,
 ) -> Dict[str, Any]:
     inputs = tokenize_conversation(conversation, tokenizer, no_system_prompt=no_system_prompt)
     labels = torch.ones_like(inputs) * IGNORE_INDEX
 
     # Generate the template by replacing the assistant's response with a sentinel.
+    _maybe_add_sentinel_token(tokenizer)
     template = tokenize_conversation(
-        conversation, tokenizer, overrides={"gpt": SENTINEL}, no_system_prompt=no_system_prompt
+        conversation, tokenizer, overrides={"gpt": SENTINEL_TOKEN}, no_system_prompt=no_system_prompt
     )
-    sentinel = tokenizer(SENTINEL, add_special_tokens=False).input_ids
-    sentinel = torch.tensor(sentinel, dtype=template.dtype)
 
     # Remove sentinel tokens from the template.
     mask = torch.ones_like(template, dtype=torch.bool)
-    for k in range(template.size(0) - sentinel.size(0)):
-        if torch.equal(template[k : k + sentinel.size(0)], sentinel):
-            mask[k : k + sentinel.size(0) + 1] = False  # +1 to include the stop token
+    for k in range(template.size(0) - 1):
+        if template[k] == tokenizer.sentinel_token_id:
+            mask[k : k + 2] = False
+            # NOTE(zhijianl): This is to handle the corner case where there is an empty token before the sentinel token.
+            if k > 0 and retried:
+                mask[k - 1] = False
     template = template[mask]
 
     # Match the tokenized conversation with the template (with no assistant's response).
@@ -146,20 +158,26 @@ def preprocess_conversation(
 
     # Mask all tokens in the label if the template is not fully matched.
     if p < template.size(0):
-        logging.warning("Failed to process the conversation. All tokens will be masked in the label.")
+        if not retried:
+            return preprocess_conversation(
+                conversation,
+                tokenizer,
+                no_system_prompt=no_system_prompt,
+                retried=True,
+            )
+        logger.error(f"Failed to process the conversation: '{conversation}'. All tokens will be masked in the label.")
         labels[:] = IGNORE_INDEX
 
     return {"input_ids": inputs, "labels": labels}
 
 
 def infer_stop_tokens(tokenizer: transformers.PreTrainedTokenizer) -> List[str]:
-    template = tokenize_conversation(DUMMY_CONVERSATION, tokenizer, overrides={"gpt": SENTINEL})
-    sentinel = tokenizer(SENTINEL, add_special_tokens=False).input_ids
-    sentinel = torch.tensor(sentinel, dtype=template.dtype)
+    _maybe_add_sentinel_token(tokenizer)
+    template = tokenize_conversation(DUMMY_CONVERSATION, tokenizer, overrides={"gpt": SENTINEL_TOKEN})
 
     stop_tokens = {tokenizer.eos_token}
-    for k in range(template.size(0) - sentinel.size(0)):
-        if torch.equal(template[k : k + sentinel.size(0)], sentinel):
-            stop_token = tokenizer.decode(template[k + sentinel.size(0)])
+    for k in range(template.size(0) - 1):
+        if template[k] == tokenizer.sentinel_token_id:
+            stop_token = tokenizer.decode(template[k + 1])
             stop_tokens.add(stop_token)
     return list(stop_tokens)

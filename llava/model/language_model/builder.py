@@ -15,8 +15,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import math
+import os
 import os.path as osp
 import warnings
+from dataclasses import asdict
 from typing import Tuple
 
 import torch
@@ -30,6 +32,11 @@ from transformers import (
     PreTrainedModel,
     PreTrainedTokenizer,
 )
+
+from llava.constants import MEDIA_TOKENS
+from llava.model.utils import packing
+from llava.utils.logging import logger
+from llava.utils.tokenizer import infer_stop_tokens
 
 
 def has_tokenizer(repo_id_or_path: str) -> bool:
@@ -62,15 +69,116 @@ def build_llm_and_tokenizer(
     *args,
     **kwargs,
 ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+    # print(model_name_or_path)
     llm_cfg = AutoConfig.from_pretrained(model_name_or_path)
     llm_cfg._attn_implementation = attn_implementation
     llm_cfg.model_max_length = model_max_length
     if model_max_length is not None:
         context_length_extension(llm_cfg)
 
-    llm = AutoModelForCausalLM.from_pretrained(
-        model_name_or_path, config=llm_cfg, torch_dtype=eval(config.model_dtype), *args, **kwargs
-    )
+    # Quantization related
+    quantization_restore_from_checkpoint = False
+    if kwargs.get("quantize_model_class") is not None:
+        assert kwargs.get("model_args") is not None
+        quantize_model_class = kwargs.pop("quantize_model_class", None)
+        model_args = kwargs.pop("model_args", None)
+
+        if quantize_model_class == "QLlamaForCausalLM":  # TODO: Also change the name of this class
+            from .qllama import QLlamaConfig
+
+            llm_cfg.architectures = "QLlamaForCausalLM"
+            _attn_implementation = llm_cfg._attn_implementation
+            llm_cfg = QLlamaConfig(**llm_cfg.to_dict())
+            llm_cfg._attn_implementation = _attn_implementation
+        elif quantize_model_class == "QMemLlamaForCausalLM":  # TODO: Also change the name of this class
+            from .qmemllama import QMemLlamaConfig
+
+            llm_cfg.architectures = "QMemLlamaForCausalLM"
+            llm_cfg = QMemLlamaConfig(**llm_cfg.to_dict())
+        elif quantize_model_class == "FP8LinearQwen2ForCausalLM":
+            from .configuration_quantize import QuantizationConfig
+            from .fp8linearqwen2 import FP8LinearQwen2Config
+
+            llm_cfg.architectures = "FP8LinearQwen2ForCausalLM"
+            coat_fp8_args = QuantizationConfig(**asdict(model_args))
+
+            # Remove the quantization args from llm_cfg and make it a independent config
+            model_args_dict = asdict(model_args)
+            for key in asdict(coat_fp8_args).keys():
+                model_args_dict.pop(key, None)
+
+            llm_cfg.coat_fp8_args = asdict(coat_fp8_args)
+            _attn_implementation = llm_cfg._attn_implementation
+
+            llm_cfg = FP8LinearQwen2Config(**llm_cfg.to_dict())
+            llm_cfg._attn_implementation = _attn_implementation
+
+        elif quantize_model_class == "FP8ActivationQwen2ForCausalLM":
+            from ..coat.activation.models._fp8_quantization_config import QuantizationConfig
+            from .fp8activationqwen2 import FP8ActivationQwen2Config
+
+            quantization_restore_from_checkpoint = True
+
+            llm_cfg.architectures = "FP8ActivationQwen2ForCausalLM"
+            coat_fp8_args = QuantizationConfig(**asdict(model_args))
+
+            # Remove the quantization args from llm_cfg and make it a independent config
+            model_args_dict = asdict(model_args)
+            for key in asdict(coat_fp8_args).keys():
+                model_args_dict.pop(key, None)
+
+            llm_cfg.coat_fp8_args = asdict(coat_fp8_args)
+            _attn_implementation = llm_cfg._attn_implementation
+
+            llm_cfg = FP8ActivationQwen2Config(**llm_cfg.to_dict())
+            llm_cfg._attn_implementation = _attn_implementation
+
+        elif quantize_model_class == "FP8ActivationResidualQwen2ForCausalLM":
+            from ..coat.activation.models._fp8_quantization_config import QuantizationConfig
+            from .fp8activationresidualqwen2 import FP8ActivationResidualQwen2Config
+
+            quantization_restore_from_checkpoint = True
+
+            llm_cfg.architectures = "FP8ActivationResidualQwen2ForCausalLM"
+            coat_fp8_args = QuantizationConfig(**asdict(model_args))
+
+            # Remove the quantization args from llm_cfg and make it a independent config
+            model_args_dict = asdict(model_args)
+            for key in asdict(coat_fp8_args).keys():
+                model_args_dict.pop(key, None)
+
+            llm_cfg.coat_fp8_args = asdict(coat_fp8_args)
+            _attn_implementation = llm_cfg._attn_implementation
+
+            llm_cfg = FP8ActivationResidualQwen2Config(**llm_cfg.to_dict())
+            llm_cfg._attn_implementation = _attn_implementation
+        else:
+            raise ValueError(f"{quantize_model_class} is not supported quantize_model_class.")
+
+        kwargs.pop("quantize_model_class", None)
+
+        if quantize_model_class in [
+            "FP8LinearQwen2ForCausalLM",
+            "FP8ActivationQwen2ForCausalLM",
+            "FP8ActivationResidualQwen2ForCausalLM",
+        ]:  # Remove the quantization args from llm_cfg and make it a independent config
+            llm_cfg.update(model_args_dict)
+        else:
+            llm_cfg.update(asdict(model_args))
+        # print(model_args)
+
+    if quantization_restore_from_checkpoint:
+        fp8_model_name_or_path = kwargs.pop("fp8_llm_cfg", None)
+
+        llm = AutoModelForCausalLM.from_pretrained(
+            fp8_model_name_or_path, config=llm_cfg, torch_dtype=eval(config.model_dtype), *args, **kwargs
+        )
+
+    else:
+        llm = AutoModelForCausalLM.from_pretrained(
+            model_name_or_path, config=llm_cfg, torch_dtype=eval(config.model_dtype), *args, **kwargs
+        )
+    packing.patch(llm)
 
     # Locate the tokenizer.
     llm_path = model_name_or_path
@@ -79,35 +187,28 @@ def build_llm_and_tokenizer(
     if not has_tokenizer(llm_path):
         raise ValueError(f"Cannot find tokenizer in {llm_path}.")
 
-    # TODO(ligeng): use LLM class to judge to better compability.
-    try:
-        llm_arch = getattr(llm_cfg, "architectures")[0].lower()
-    except BaseException:
-        warnings.warn(f'Cannot find LLM architecture, please check the "config.json" under "{llm_path}".')
+    tokenizer = AutoTokenizer.from_pretrained(llm_path, padding_side="right", use_fast=False, legacy=False)
+    if model_max_length is not None:
+        tokenizer.model_max_length = model_max_length
 
-    if "mpt" in llm_arch:
-        tokenizer = AutoTokenizer.from_pretrained(
-            llm_path,
-            model_max_length=llm_cfg.model_max_length,
-            padding_side="right",
-        )
-    elif "yi" in llm_path or (
-        getattr(llm_cfg, "num_hidden_layers", -1) == 60 and getattr(llm_cfg, "num_attention_heads", -1) == 56
-    ):
-        tokenizer = AutoTokenizer.from_pretrained(
-            llm_path,
-            model_max_length=llm_cfg.model_max_length,
-            padding_side="right",
-            use_fast=False,
-        )
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(
-            llm_path,
-            model_max_length=llm_cfg.model_max_length,
-            padding_side="right",
-            use_fast=False,
-            legacy=False,
-        )
+    # Load chat template if specified.
+    if getattr(config, "chat_template", None) is not None:
+        logger.info(f"Using chat template: {config.chat_template}")
+        fpath = os.path.join(os.path.dirname(__file__), "chat_templates", f"{config.chat_template}.jinja")
+        with open(fpath) as fd:
+            chat_template = fd.read()
+        tokenizer.chat_template = chat_template.replace("    ", "").replace("\n", "")
+
+    # Set stop tokens for the tokenizer
+    tokenizer.stop_tokens = infer_stop_tokens(tokenizer)
+    tokenizer.stop_token_ids = tokenizer.convert_tokens_to_ids(tokenizer.stop_tokens)
+
+    # Add media tokens to the tokenizer
+    tokenizer.media_tokens = MEDIA_TOKENS
+    tokenizer.media_token_ids = {}
+    for name, token in MEDIA_TOKENS.items():
+        tokenizer.add_tokens([token], special_tokens=True)
+        tokenizer.media_token_ids[name] = tokenizer.convert_tokens_to_ids(token)
 
     # TODO(ligeng): is this necessary for llava?
     config.hidden_size = llm.config.hidden_size

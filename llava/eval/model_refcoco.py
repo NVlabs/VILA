@@ -139,10 +139,7 @@ class RefCOCODataset(Dataset):
 
         sents = line["sents"]
         qs = f"Please provide the bounding box coordinate of the region this sentence describes: {sents}."
-        if self.model_config.mm_use_im_start_end:
-            qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + qs
-        else:
-            qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
+        qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
 
         conv = conv_templates[self.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)
@@ -154,7 +151,7 @@ class RefCOCODataset(Dataset):
         )
         image_tensor = process_images([image], self.image_processor, self.model_config)[0]
 
-        input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+        input_ids = tokenizer_image_token(prompt, self.tokenizer, return_tensors="pt")
 
         return input_ids, image_tensor, image_file, line, image
 

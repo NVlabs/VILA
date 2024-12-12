@@ -42,7 +42,7 @@ def main(args):
     for index, instance in enumerate(dataset):
         image = instance["image"].convert("RGB")
         image = process_images([image], image_processor, model.config).half()
-        image_features = model.encode_images(image)
+        image_features = model.encode_images(image, block_sizes=None)
         if args.pooling_size != 0:
             B, _, F = image_features.shape
             image_features_spatial = image_features.view(B, int(math.sqrt(_)), int(math.sqrt(_)), F).permute(
@@ -60,7 +60,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="output/LLaVA-NeXT-Video-7B-Vicuna")
     parser.add_argument("--needle_dataset", type=str, default="lmms-lab/v_niah_needles")
-    parser.add_argument("--output_dir", type=str, default="video_needle_haystack/data/needle_vicuna_embeddings")
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="video_needle_haystack/data/needle_vicuna_embeddings",
+    )
     parser.add_argument("--pooling_size", type=int, default=0)
     args = parser.parse_args()
     main(args)

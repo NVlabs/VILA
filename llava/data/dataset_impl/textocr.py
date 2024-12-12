@@ -42,23 +42,15 @@ from torchvision.transforms import Resize
 
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
+from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
 from llava.data.dataset import LazySupervisedDataset
-from llava.data.datasets_mixture import DATASETS
 from llava.data.simple_vila_webdataset import VILAWebDataset
 from llava.mm_utils import is_gemma_tokenizer, tokenizer_image_token
 from llava.model import *
 from llava.train.args import DataArguments, TrainingArguments
 from llava.train.llava_trainer import LLaVATrainer
 
-DEFAULT_TEXTOCR = "~/nvr_elm_llm/dataset/TextOCR"
-DEFAULT_TEXTOCR = osp.expanduser(DEFAULT_TEXTOCR)
+DEFAULT_TEXTOCR = osp.expanduser("~/nvr_elm_llm/dataset/TextOCR")
 
 
 class GenericDataset:
@@ -229,7 +221,6 @@ def preprocess_OCR(image, texts: list, data_args, tokenizer):
 
     targets = copy.deepcopy(input_ids)
     # mask image tokens is unnecessary for llava-1.5
-    # targets[targets == IMAGE_TOKEN_INDEX] = IGNORE_INDEX
     for i in range(len(targets)):
         targets[i][targets[i] == tokenizer.pad_token_id] = IGNORE_INDEX
 

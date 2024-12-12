@@ -143,6 +143,7 @@ class VILADistributedSampler(DistributedSampler):
         sample_len_list=None,
         force_accumulation=True,
         sp_degree: int = 1,
+        gradient_accumulation_steps: int = 1,
     ) -> None:
         if num_replicas is None:
             if not dist.is_available():
@@ -184,8 +185,9 @@ class VILADistributedSampler(DistributedSampler):
         if self.drop_last:  # type: ignore[arg-type]
             self.per_replica_samples = [
                 sample_len
-                // (self.num_replicas * self.batch_size // self.sp_degree)
+                // (self.num_replicas * self.batch_size * gradient_accumulation_steps // self.sp_degree)
                 * self.batch_size
+                * gradient_accumulation_steps
                 // self.sp_degree
                 for sample_len in self.per_replica_samples
             ]
@@ -201,6 +203,9 @@ class VILADistributedSampler(DistributedSampler):
 
         # whether to force accumulate
         self.force_accumulation = force_accumulation
+
+    def __len__(self) -> int:
+        return self.num_samples * self.sp_degree
 
     def __iter__(self):
 
@@ -450,6 +455,7 @@ class VILADPOTrainer(DPOTrainer):
             batch_size=self.args.train_batch_size,
             sample_len_list=sample_len_list,
             sp_degree=self.args.seq_parallel_size,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
         )
 
     def _get_eval_sampler(self, eval_dataset: Dataset) -> Optional[torch.utils.data.Sampler]:
@@ -466,6 +472,7 @@ class VILADPOTrainer(DPOTrainer):
             seed=seed,
             batch_size=self.args.eval_batch_size,
             sample_len_list=sample_len_list,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
         )
 
     def create_optimizer(self):
@@ -580,6 +587,10 @@ class VILADPOTrainer(DPOTrainer):
 
 
 class LLaVATrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model_accepts_loss_kwargs = True
+
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None
@@ -608,6 +619,7 @@ class LLaVATrainer(Trainer):
             batch_size=self.args.train_batch_size,
             sample_len_list=sample_len_list,
             sp_degree=self.args.seq_parallel_size,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
         )
 
         # if self.args.group_by_modality_length:
@@ -640,7 +652,16 @@ class LLaVATrainer(Trainer):
             seed=seed,
             batch_size=self.args.eval_batch_size,
             sample_len_list=sample_len_list,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
         )
+
+    def _inner_training_loop(self, batch_size: Optional[int] = None, *args, **kwargs):
+        # NOTE(zhijianl): In the latest transformers, if the batch size in the training arguments differs from
+        # the one in the training state, the batch size from the state is used by default. This can be
+        # problematic when resuming with different batch sizes or gradient accumulation steps. To prevent this,
+        # we enforce using the batch size specified in the training arguments.
+        batch_size = self.args.train_batch_size
+        return super()._inner_training_loop(batch_size, *args, **kwargs)
 
     def create_optimizer(self):
         """
@@ -695,6 +716,48 @@ class LLaVATrainer(Trainer):
                         ],
                         "weight_decay": 0.0,
                         "lr": self.args.mm_projector_lr,
+                    },
+                ]
+            elif self.args.vision_tower_lr is not None:
+                projector_parameters = [name for name, _ in opt_model.named_parameters() if "vision_tower" in name]
+                # projector_lora_A_parameters = [name for name in projector_parameters if "lora_A" in name]
+                # projector_lora_B_parameters = [name for name in projector_parameters if "lora_B" in name]
+                # other_lora_A_parameters = [name for name in opt_model.named_parameters() if "lora_A" in name and name not in projector_parameters]
+                # other_lora_B_parameters = [name for name in opt_model.named_parameters() if "lora_B" in name and name not in projector_parameters]
+                optimizer_grouped_parameters = [
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n not in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n not in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                        "lr": self.args.vision_tower_lr,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                        "lr": self.args.vision_tower_lr,
                     },
                 ]
             else:
@@ -756,6 +819,10 @@ class LLaVATrainer(Trainer):
                 non_lora_state_dict,
                 os.path.join(output_dir, "non_lora_trainables.bin"),
             )
+            # config
+            self.model._name_or_path = output_dir
+            self.model.architectures = [self.model.__class__.__name__]
+            self.model.config.save_pretrained(output_dir)
 
         if self.args.should_save:
             return self.model.save_pretrained(output_dir, state_dict=state_dict)

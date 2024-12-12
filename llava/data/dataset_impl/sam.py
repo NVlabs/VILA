@@ -41,15 +41,8 @@ from torchvision.transforms import Resize
 
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
+from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
 from llava.data.dataset import LazySupervisedDataset, lru_json_load
-from llava.data.datasets_mixture import DATASETS
 from llava.data.simple_vila_webdataset import VILAWebDataset
 from llava.mm_utils import is_gemma_tokenizer, opencv_extract_frames, process_image, tokenizer_image_token
 from llava.model import *
@@ -221,18 +214,19 @@ class LazySAMWebDataset(Dataset):
 
         targets = copy.deepcopy(input_ids)
         # mask image tokens is unnecessary for llava-1.5
-        # targets[targets == IMAGE_TOKEN_INDEX] = IGNORE_INDEX
         for i in range(len(targets)):
             targets[i][targets[i] == self.tokenizer.pad_token_id] = IGNORE_INDEX
 
         return dict(input_ids=input_ids, labels=targets, image=image_list)
 
 
+# nvcode: on
 if __name__ == "__main__":
-    data_path = "/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/sam-reformat"
+    data_path = osp.expanduser("~/dataset/sam-reformat")
     dst = VILAWebDataset(
         data_path=osp.abspath(data_path),
     )
     # print(dst[0])
     for idx, data in enumerate(dst):
         print(idx, data.keys())
+# nvcode: off

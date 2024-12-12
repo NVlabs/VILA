@@ -15,6 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import json
 import os
 import pathlib
 import re
@@ -81,6 +82,7 @@ def get_checkpoint_path(output_dir: str, checkpoint_prefix: str = "checkpoint") 
 def prepare_config_for_training(
     config: PretrainedConfig, model_args: dataclass, training_args: dataclass, data_args: dataclass
 ) -> None:
+    config.chat_template = model_args.chat_template
     assert model_args.vision_tower is not None, "requires vision tower"
     # set module configurations
     if getattr(config, "llm_cfg", None) is None:
@@ -115,22 +117,12 @@ def prepare_config_for_training(
     ):
         config.deepspeed = training_args.deepspeed
 
-    # extra vision tower configuration
-    if getattr(config, "vision_tower_cfg", None) is not None:
-        # Set the vision config as per the command-line flags, except
-        # if the vision config is already defined in the config file (case
-        # of resuming from a checkpoint).
-        if getattr(config, "mm_vision_select_layer", None) is None:
-            config.mm_vision_select_layer = model_args.mm_vision_select_layer
-        if getattr(config, "mm_vision_select_feature", None) is None:
-            config.mm_vision_select_feature = model_args.mm_vision_select_feature
-        # vision tower configurations
-        config.vision_resolution = model_args.vision_resolution
-        config.interpolate_mode = model_args.interpolate_mode
-        config.drop_path_rate = model_args.drop_path_rate
-        config.s2 = model_args.s2
-        config.s2_scales = model_args.s2_scales
-        config.s2_max_split_size = model_args.s2_max_split_size
+    for key, value in model_args.__dict__.items():
+        try:
+            value = json.loads(value)
+        except:
+            pass
+        setattr(config, key, value)
 
 
 def vision_resolution_elevation(model: PreTrainedModel, config: PretrainedConfig):

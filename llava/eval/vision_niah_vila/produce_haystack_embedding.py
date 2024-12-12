@@ -57,11 +57,13 @@ def main(args):
         newline_token_embeddong = model.model.image_newline
     with torch.inference_mode():
         for i, video_batch in tqdm(
-            enumerate(load_video_batches(video_path, batch_size)), total=total_batches, desc="Processing Video Batches"
+            enumerate(load_video_batches(video_path, batch_size)),
+            total=total_batches,
+            desc="Processing Video Batches",
         ):
             images = [Image.fromarray(frame).convert("RGB") for frame in video_batch]
             processed_images = process_images(images, image_processor, model.config).half()
-            image_features = model.encode_images(processed_images)
+            image_features = model.encode_images(processed_images, block_sizes=None)
             print(image_features.shape)
             if args.pooling_size != 0:
                 B, _, F = image_features.shape
@@ -75,7 +77,11 @@ def main(args):
                 image_features = image_features_spatial_pool.flatten(2).transpose(1, 2).contiguous()  # B, 144, F
             if args.add_newline_token:
                 image_features = torch.cat(
-                    [image_features, newline_token_embeddong.unsqueeze(0).expand(image_features.shape[0], 1, -1)], dim=1
+                    [
+                        image_features,
+                        newline_token_embeddong.unsqueeze(0).expand(image_features.shape[0], 1, -1),
+                    ],
+                    dim=1,
                 )
             image_feature_list.append(image_features.to(torch.bfloat16).to("cpu"))
             if i > total_batches:
@@ -89,7 +95,11 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="output/LLaVA-NeXT-Video-7B-Vicuna")
     parser.add_argument("--video_path", type=str, default="/home/yukangc/movie.mp4")
     parser.add_argument("--sampled_frames_num", type=int, default=7200)
-    parser.add_argument("--output_dir", type=str, default="video_needle_haystack/data/haystack_vicuna_embeddings")
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="video_needle_haystack/data/haystack_vicuna_embeddings",
+    )
     parser.add_argument("--pooling_size", type=int, default=0)
     parser.add_argument("--add_newline_token", action="store_true")
     args = parser.parse_args()

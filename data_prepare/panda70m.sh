@@ -1,5 +1,5 @@
 JOBS_LIMIT=${1:-32}  # Set your limit here
-workdir=${2:-/lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m/panda70m_training_10m}
+workdir=${2:-$HOME/dataset/panda70m/panda70m_training_10m}
 
 wname=$(echo $workdir | rev | cut -d "/" -f 1 | rev)
 
@@ -25,9 +25,9 @@ for idx in $(seq 0 $idx_size); do
 
 done
 
-# bash data_prepare/panda70m.sh 32 /lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m/panda70m_training_10m;
-# bash data_prepare/panda70m.sh 32 /lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m/panda70m_training_2m;
-# bash data_prepare/panda70m.sh 32 /lustre/fsw/portfolios/nvr/projects/nvr_elm_llm/dataset/panda70m/panda70m_testing;
+# bash data_prepare/panda70m.sh 32 $HOME/dataset/panda70m/panda70m_training_10m;
+# bash data_prepare/panda70m.sh 32 $HOME/dataset/panda70m/panda70m_training_2m;
+# bash data_prepare/panda70m.sh 32 $HOME/dataset/panda70m/panda70m_testing;
 
 # --exclusive \
 # --cpus-per-task 8 \

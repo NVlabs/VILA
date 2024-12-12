@@ -8,9 +8,6 @@ To train VILA, we used the following datasets:
 | 2. Pre-training         | MMC4-core, COYO-700M, ShreGPT4V_pretrain                                                      |
 | 3. SFT                  | LLaVA-Next mixture, VFLAN, WIT, GSM8K-ScRel-SFT, Sherlock, ScienceQA, Shot2story, Video_ChatGPT, Youcook2, Vatex, ShareGPT_Video |
 
-
-
-
 ### LLaVa-CC3M-Pretrain
 
 We use [LLaVA-CC3M-Pretrain-595K](https://huggingface.co/datasets/liuhaotian/LLaVA-CC3M-Pretrain-595K/blob/main/chat.json) to train the visual language projector
@@ -21,7 +18,7 @@ Due to the limit of compute, we pre-train VILA on the smaller core set of MMC4 i
 
 1. Firstly, download the annotations of the MMC4-core dataset here: https://github.com/allenai/mmc4. We used the non-fewer-face split, and you may need to request the access [here](https://forms.gle/VYtcNY8aYaUANK9f8).
 
-2. Now modify the input and output path in `mmc4_downloader.py` and run the following script to scrawl the MMC4 images:
+1. Now modify the input and output path in `mmc4_downloader.py` and run the following script to scrawl the MMC4 images:
 
 ```bash
 cd mmc4
@@ -134,7 +131,6 @@ huggingface-cli download mit-han-lab/vila-dataset shot2story_shotonly.json
  --repo-type dataset --local-dir shot2story --local-dir-use-symlinks False
 ```
 
-
 ### Video_ChatGPT
 
 You can follow this [page](https://github.com/mbzuai-oryx/Video-ChatGPT/blob/main/README.md#video-instruction-dataset-open_file_folder) to prepare Video_ChatGPT dataset.
@@ -161,7 +157,7 @@ You can follow this [page](https://huggingface.co/datasets/ShareGPTVideo/train_v
 
 ### WIT
 
-The original WIT data can be obtained [google-research-datasets/wit](https://github.com/google-research-datasets/wit/tree/main). \* We subsample ~538K english data from the original WIT dataset and curate a llava conversation format JSON file.
+The original WIT data can be obtained [google-research-datasets/wit](https://github.com/google-research-datasets/wit/tree/main). * We subsample ~538K english data from the original WIT dataset and curate a llava conversation format JSON file.
 
 ```bash
 huggingface-cli download mit-han-lab/vila-dataset wit_processed_538k.json --repo-type dataset --local-dir WIT --local-dir-use-symlinks False
@@ -179,7 +175,7 @@ The image files of Sherlock can be obtained from [VisualGenome](https://visualge
 huggingface-cli download mit-han-lab/vila-dataset sherlock_317k.json --repo-type dataset --local-dir sherlock --local-dir-use-symlinks False
 ```
 
-### ScienceQA 
+### ScienceQA
 
 We use the train split of ScienceQA. The image data of the train split can be obtained from [ScienceQA](https://huggingface.co/datasets/derek-thomas/ScienceQA) or their [huggingface repo](https://huggingface.co/datasets/derek-thomas/ScienceQA). The llava conversation format JSON file can be downloaded with
 

@@ -96,7 +96,7 @@ def get_acc_with_contion(res_pd, key, value):
     return len(correct_pd), len(total_pd), acc
 
 
-def simple_calculate_score(results: dict, scores_file: str):
+def simple_calculate_score(results: dict):
     full_pids = list(results.keys())
     print("Number of testing problems:", len(full_pids))
 
@@ -129,7 +129,7 @@ def simple_calculate_score(results: dict, scores_file: str):
     for pid in full_pids:
         if results[pid]["true_false"]:
             correct += 1
-    accuracy = str(round(correct / total * 100, 2))
+    accuracy = correct / total
     print(f"\nCorrect: {correct}, Total: {total}, Accuracy: {accuracy}%")
 
     scores = {"average": {"accuracy": accuracy, "correct": correct, "total": total}}
@@ -193,8 +193,4 @@ def simple_calculate_score(results: dict, scores_file: str):
                 reverse=True,
             )
         )
-
-    # save the scores
-    print(f"\nSaving {scores_file}...")
-    save_json(scores, scores_file)
-    print("\nDone!")
+    return scores

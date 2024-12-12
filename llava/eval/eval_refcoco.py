@@ -34,7 +34,7 @@ if __name__ == "__main__":
                 pred_data = [json.loads(x) for x in open(prediction_file)]
                 pred_dict = defaultdict(list)
                 for pred in pred_data:
-                    img_id = pred["img_id"][0]
+                    img_id = pred["img_id"]
                     pred_dict[img_id].append(pred)
 
                 with open(os.path.join(args.data_path, f"{dataset}_{split}.json")) as f:

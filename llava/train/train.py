@@ -16,6 +16,7 @@
 
 import copy
 import logging
+import math
 import os
 import warnings
 from dataclasses import dataclass, field
@@ -30,20 +31,17 @@ from transformers.modeling_utils import unwrap_model
 import llava.data.dataset as dataset
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
+from llava.constants import IGNORE_INDEX
 from llava.data import make_supervised_data_module
 from llava.mm_utils import process_image
-from llava.model import *
+from llava.model import LlavaLlamaConfig, LlavaLlamaModel
+from llava.model.language_model.fp8linearqwen2 import Qwen2ForCausalLM  # We need this line to register AutoConfig
+from llava.model.language_model.qllava_qllama import QLlavaLlamaModel, quantize_args_to_model_class
 from llava.train.args import DataArguments, ModelArguments, TrainingArguments
 from llava.train.callbacks.autoresume_callback import AutoResumeCallback
 from llava.train.llava_trainer import LLaVATrainer, VILADPOTrainer
 from llava.train.sequence_parallel import set_pg_manager
+from llava.train.slurm_utils import TimeoutTerminateCallback
 from llava.train.utils import (
     get_checkpoint_path,
     mprint,
@@ -58,6 +56,37 @@ local_rank = None
 if "WANDB_PROJECT" not in os.environ:
     # Default to WANDB project "VILA".
     os.environ["WANDB_PROJECT"] = "VILA"
+
+
+def get_nb_trainable_parameters(model) -> tuple[int, int]:
+    r"""
+    Returns the number of trainable parameters and the number of all parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        num_params = param.numel()
+        # if using DS Zero 3 and the weights are initialized empty
+        if num_params == 0 and hasattr(param, "ds_numel"):
+            num_params = param.ds_numel
+
+        # Due to the design of 4bit linear layers from bitsandbytes
+        # one needs to multiply the number of parameters by 2 to get
+        # the correct number of parameters
+        if param.__class__.__name__ == "Params4bit":
+            if hasattr(param, "element_size"):
+                num_bytes = param.element_size()
+            elif not hasattr(param, "quant_storage"):
+                num_bytes = 1
+            else:
+                num_bytes = param.quant_storage.itemsize
+            num_params = num_params * 2 * num_bytes
+
+        all_param += num_params
+        if param.requires_grad:
+            trainable_params += num_params
+
+    return trainable_params, all_param
 
 
 def maybe_zero_3(param, ignore_status=False, name=None):
@@ -321,7 +350,7 @@ class DPODataset(Dataset):
 
     def __init__(self, data_mixture: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
         super(Dataset, self).__init__()
-        data_path = datasets_mixture.DATASETS[data_mixture].data_path
+        data_path = datasets_mixture.DATASETS_LEGACY[data_mixture].data_path
         list_data_dict = load_data(data_path)
         # if data_args.num_sample is not None:
         #     list_data_dict = list_data_dict[:data_args.num_sample]
@@ -330,7 +359,7 @@ class DPODataset(Dataset):
         self.tokenizer = tokenizer
         self.list_data_dict = list_data_dict
         self.data_args = data_args
-        self.image_folder = datasets_mixture.DATASETS[data_mixture].image_path
+        self.image_folder = datasets_mixture.DATASETS_LEGACY[data_mixture].image_path
 
     def __len__(self):
         # return 20
@@ -393,7 +422,9 @@ def train():
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     # FIXME(zhijianl): This should be deprecated when we move to the new scripts.
-    if os.getenv("RUN_NAME") is None:
+    if os.getenv("RUN_NAME") is not None:
+        training_args.run_name = os.getenv("RUN_NAME")
+    else:
         training_args.run_name = training_args.output_dir.split("/")[-1]
 
     local_rank = training_args.local_rank
@@ -406,12 +437,12 @@ def train():
         bnb_model_from_pretrained_args.update(
             dict(
                 device_map={"": training_args.device},
-                load_in_4bit=training_args.bits == 4,
-                load_in_8bit=training_args.bits == 8,
+                # load_in_4bit=training_args.bits == 4,
+                # load_in_8bit=training_args.bits == 8,
                 quantization_config=BitsAndBytesConfig(
                     load_in_4bit=training_args.bits == 4,
                     load_in_8bit=training_args.bits == 8,
-                    llm_int8_skip_modules=["mm_projector"],
+                    llm_int8_skip_modules=["lm_head"],
                     llm_int8_threshold=6.0,
                     llm_int8_has_fp16_weight=False,
                     bnb_4bit_compute_dtype=compute_dtype,
@@ -448,38 +479,42 @@ def train():
     else:
         ## first time training
         resume_from_checkpoint = False
-        if "mpt" in model_args.model_name_or_path:
-            config = AutoConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
-            config.attn_config["attn_impl"] = training_args.mpt_attn_impl
-            model_cls = LlavaMPTForCausalLM
-        elif "mistral" in model_args.model_name_or_path.lower():
-            config = LlavaMistralConfig.from_pretrained(model_args.model_name_or_path)
-            config._attn_implementation = "flash_attention_2"
-            model_cls = LlavaMistralForCausalLM
-        elif "mixtral" in model_args.model_name_or_path.lower():
-            config = LlavaMixtralConfig.from_pretrained(model_args.model_name_or_path)
-            config._attn_implementation = "flash_attention_2"
-            model_cls = LlavaMixtralForCausalLM
-        elif "gemma" in model_args.model_name_or_path.lower():
-            config = LlavaGemmaConfig.from_pretrained(model_args.model_name_or_path)
-            config._attn_implementation = "flash_attention_2"
-            model_cls = LlavaGemmaForCausalLM
+        ## llm and default multimodal model
+        if (
+            model_args.quantize_model in quantize_args_to_model_class.keys()
+        ):  # However, qmem should not used currently becuase I haven't merge the memory reduction version into VILA
+            from llava.model.language_model.qllava_qllama import QLlavaLlamaModel
+
+            model_cls = QLlavaLlamaModel
         else:
-            ## llm and default multimodal model
+            assert (
+                model_args.quantize_model == "false"
+            ), f"{model_args.quantize_model} for model_args.quantize_model is not supported"
             model_cls = LlavaLlamaModel
-            config = LlavaLlamaConfig.from_pretrained(model_args.model_name_or_path, resume=resume_from_checkpoint)
+        config = LlavaLlamaConfig.from_pretrained(model_args.model_name_or_path, resume=resume_from_checkpoint)
+
         if getattr(config, "resume_path", None) is not None:
             config.resume_path = model_args.model_name_or_path
 
     ## extra configurations
     prepare_config_for_training(config, model_args, training_args, data_args)
-    model = model_cls(
-        config=config,
-        attn_implementation="flash_attention_2",
-        model_max_length=training_args.model_max_length,
-        cache_dir=training_args.cache_dir,
-        **bnb_model_from_pretrained_args,
-    )
+    if model_args.quantize_model in quantize_args_to_model_class.keys():
+        model = model_cls(
+            config=config,
+            model_args=model_args,
+            attn_implementation="flash_attention_2",
+            model_max_length=training_args.model_max_length,
+            cache_dir=training_args.cache_dir,
+            **bnb_model_from_pretrained_args,
+        )
+    else:
+        model = model_cls(
+            config=config,
+            attn_implementation="flash_attention_2",
+            model_max_length=training_args.model_max_length,
+            cache_dir=training_args.cache_dir,
+            **bnb_model_from_pretrained_args,
+        )
 
     if not resume_path or training_args.lora_enable:
         if model_args.mlp_path is not None:
@@ -512,11 +547,14 @@ def train():
     model.llm.config.use_cache = False
 
     ## set tunnable parameters
-    logging.warning(
-        "You are setting tunable parameters for the model. Previous args include 'freeze_backbone' and 'tune_mm_mlp_adapter' are deprecated.\n Notice: default value of tune_xxx is False, which means you would not tune this part."
-    )
+    # logging.warning(
+    #     "You are setting tunable parameters for the model. Previous args include 'freeze_backbone' and 'tune_mm_mlp_adapter' are deprecated.\n Notice: default value of tune_xxx is False, which means you would not tune this part."
+    # )
 
     def need_to_modify_do_sample(generation_config):
+        if generation_config is None:
+            warnings.warn("generation config is None, skip do sample modification")
+            return False
         if generation_config.do_sample is False:
             if generation_config.temperature is not None and generation_config.temperature != 1.0:
                 return True
@@ -615,6 +653,10 @@ def train():
             model.get_mm_projector().requires_grad_(training_args.tune_mm_projector)
             mprint(f"vision tower {training_args.tune_vision_tower}")
             mprint(f"mm projector {training_args.tune_mm_projector}")
+            trainable_params, all_param = get_nb_trainable_parameters(model)
+            print(
+                f"trainable params: {trainable_params:,d} || all params: {all_param:,d} || trainable%: {100 * trainable_params / all_param:.4f}"
+            )
 
         if not any(
             [training_args.tune_language_model, training_args.tune_vision_tower, training_args.tune_mm_projector]
@@ -623,35 +665,26 @@ def train():
 
     # @yunhao: tokenizer instantiation is moved into build_llm
     tokenizer = model.tokenizer
-    # @yunhao: may move this block into method "build_llm"
-    if model_args.version == "v0":
-        if tokenizer.pad_token is None:
-            smart_tokenizer_and_embedding_resize(
-                special_tokens_dict=dict(pad_token="[PAD]"),
-                tokenizer=tokenizer,
-                model=model.llm,
-            )
-    elif model_args.version == "v0.5":
-        tokenizer.pad_token = tokenizer.unk_token
-    else:
-        tokenizer.pad_token = tokenizer.unk_token
-        if tokenizer.pad_token is None:
-            smart_tokenizer_and_embedding_resize(
-                special_tokens_dict=dict(pad_token="[PAD]"),
-                tokenizer=tokenizer,
-                model=model.llm,
-            )
-        if model_args.version in conversation_lib.conv_templates:
-            conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
-        else:
-            conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1"]
 
-    # kentang-mit@: It will be useful in on-the-fly packing
-    model.llm.pad_token_id = tokenizer.pad_token_id
-    model.llm.config.tokenizer_padding_side = tokenizer.padding_side
-    model.llm.config.tokenizer_model_max_length = tokenizer.model_max_length
-    if training_args.lora_enable:
-        model.base_model.model.llm.pad_token_id = tokenizer.pad_token_id
+    if tokenizer.bos_token is None:
+        smart_tokenizer_and_embedding_resize(
+            special_tokens_dict=dict(bos_token="[BOS]"),
+            tokenizer=tokenizer,
+            model=model.llm,
+        )
+
+    # @yunhao: may move this block into method "build_llm"
+    tokenizer.pad_token = tokenizer.unk_token
+    if tokenizer.pad_token is None:
+        smart_tokenizer_and_embedding_resize(
+            special_tokens_dict=dict(pad_token="[PAD]"),
+            tokenizer=tokenizer,
+            model=model.llm,
+        )
+    if model_args.version in conversation_lib.conv_templates:
+        conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
+    else:
+        conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1"]
 
     vision_tower = model.get_vision_tower()
     if vision_tower is not None:
@@ -669,11 +702,29 @@ def train():
             model.config.fps = 0.0
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio
-        model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = model_args.mm_use_im_start_end
         model.config.mm_projector_lr = training_args.mm_projector_lr
-        training_args.use_im_start_end = model_args.mm_use_im_start_end
-        model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
-        model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
+        model.config.vision_tower_lr = training_args.vision_tower_lr
+        if model_args.mm_use_im_start_end:
+            num_new_tokens = tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
+        assert not model_args.mm_use_im_patch_token
+
+        model.config.num_time_tokens = data_args.num_time_tokens = model_args.num_time_tokens
+        model.config.time_token_format = data_args.time_token_format = model_args.time_token_format
+        if model_args.num_time_tokens > 0:
+            time_tokens = [model.config.time_token_format.format(t=t) for t in range(model.config.num_time_tokens)]
+            num_new_tokens = tokenizer.add_tokens(time_tokens)
+            assert len(time_tokens) == num_new_tokens or num_new_tokens == 0
+            model.resize_token_embeddings(len(tokenizer))
+            model.config.time_token_ids = tokenizer.convert_tokens_to_ids(time_tokens)
+        else:
+            model.config.time_token_ids = []
+        model.config.soft_ce_std = model_args.soft_ce_std
+
+        num_patches = model.get_vision_tower().num_patches
+        downsample_rate = model.get_mm_projector().downsample_rate
+        num_image_tokens = math.ceil(num_patches**0.5 / downsample_rate) ** 2
+        data_args.num_image_tokens = num_image_tokens
+
     ## TODO pay attention to quantize
     if training_args.bits in [4, 8]:
         from peft.tuners.lora import LoraLayer
@@ -689,6 +740,8 @@ def train():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
+    data_args.s2_scales = list(map(int, model_args.s2_scales.split(",")))
+
     data_module = make_supervised_data_module(
         tokenizer=tokenizer,
         data_args=data_args,
@@ -696,7 +749,7 @@ def train():
     )
 
     # Add a training step_end callback to check whether to autosuspend.
-    callbacks = [AutoResumeCallback()]
+    callbacks = [AutoResumeCallback(), TimeoutTerminateCallback()]
 
     if training_args.dpo:
         ref_model = model_cls(
@@ -732,6 +785,14 @@ def train():
         )
     else:
         trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, callbacks=callbacks, **data_module)
+
+        if model_args.quantize_model in ["fp8Activation_qwen2", "fp8ActivationResidual_qwen2"]:
+            from llava.model.coat.fp8_trainer import CoatFP8Trainer
+
+            trainer._inner_training_loop = CoatFP8Trainer._inner_training_loop.__get__(
+                trainer, LLaVATrainer
+            )  # GPT told me to do this
+
     print(
         "length of dataloader:",
         len(trainer.get_train_dataloader()),

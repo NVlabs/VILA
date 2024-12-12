@@ -17,8 +17,8 @@
 import json
 import os
 
-dataset_path = "/home/jasonlu/workspace/idefics2-sft/the_cauldron"
-save_path = "/home/jasonlu/workspace/idefics2-sft/new-vflan/"
+dataset_path = "./idefics2-sft/the_cauldron"
+save_path = "./idefics2-sft/new-vflan/"
 metadata_path = os.path.join(save_path, "metadata")
 dataset_names = sorted(os.listdir(metadata_path))
 

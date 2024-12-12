@@ -192,7 +192,7 @@ class VILAWebDataset(torch.utils.data.Dataset):
         self,
         data_path=COYO_25M_VILA,
         meta_path=None,
-        cache_dir="/home/ligengz/datasets/vila-webds-meta",
+        cache_dir=osp.join(osp.expanduser("~/.cache/vila/webds-meta")),
         max_shards_to_load=None,
     ):
         self.data_path = osp.expanduser(data_path)

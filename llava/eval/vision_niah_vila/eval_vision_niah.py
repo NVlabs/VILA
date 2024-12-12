@@ -34,14 +34,14 @@ from datasets import load_dataset
 from matplotlib.colors import LinearSegmentedColormap
 from tqdm import tqdm
 from transformers import AutoTokenizer, LlamaForCausalLM
+
+from llava.eval.vision_niah_vila.zigzag_ring_attn.modeling_qwen2 import Qwen2ForCausalLM_RingAttn
 from llava.eval.vision_niah_vila.zigzag_ring_attn.monkey_patch import apply_zigzag_ring_attn_monkey_patch_llama
 from llava.eval.vision_niah_vila.zigzag_ring_attn.prepare_inputs import prepare_zigzag_ring_attn_inputs
-
 from llava.mm_utils import get_model_name_from_path
 from llava.model.builder import load_pretrained_model
 
 apply_zigzag_ring_attn_monkey_patch_llama()
-
 
 SEED = 24242424
 torch.manual_seed(SEED)
@@ -54,7 +54,7 @@ prompt_templates = {
         "preprompt": "<s>A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions. USER:",
         "postprompt": "ASSISTANT:",
     },
-    "llama_3": {
+    "llama3": {
         "preprompt": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful language and vision assistant. You are able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n",
         "postprompt": "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
     },
@@ -74,6 +74,8 @@ prompt_templates = {
 
 def safe_tokenize(tokenizer, text):
     tokenized = tokenizer.encode(text, return_tensors="pt")
+    if tokenizer.bos_token != None and len(tokenized) > 0 and tokenized[0, 0] == tokenizer.bos_token_id:
+        tokenized = tokenized[:, 1:]
     return tokenized
 
 
@@ -91,14 +93,12 @@ def eval_forward(accelerator, model, input_embeds, answer_embeds, pad_id, answer
         .unsqueeze(0)
         .unsqueeze(-1)
         .expand(-1, -1, input_embeds.shape[-1])
-        .to(accelerator.device)
-    )
+    )  # .to(accelerator.device)
     input_embeds = torch.cat([input_embeds, pad_tensor], dim=1)
-    position_ids = (torch.arange(input_embeds.shape[1]).unsqueeze(0).expand(input_embeds.shape[0], -1)).to(
-        accelerator.device
-    )
+    position_ids = (
+        torch.arange(input_embeds.shape[1]).unsqueeze(0).expand(input_embeds.shape[0], -1)
+    )  # .to(accelerator.device)
     accelerator.print(input_embeds.shape)
-
     prepared = prepare_zigzag_ring_attn_inputs(
         input_embeds,
         position_ids,
@@ -131,16 +131,19 @@ def eval_forward(accelerator, model, input_embeds, answer_embeds, pad_id, answer
     gathered_logits = accelerator.gather(pred.squeeze(0)).unsqueeze(0)
     # undo extract local on the gathered logits
     pred = undo_extract_local(gathered_logits, accelerator.num_processes)
+
     pred = pred[:, prompt_length - 1 : prompt_length + labels_length - 1]
     # check if the logits are correct, extract argmax id
     # compare the predicted_ids with the labels
-    correct = (pred == answer_ids.to(accelerator.device)).all()
+    pred_text = tokenizer.decode(pred.squeeze().tolist())
+    answer_text = tokenizer.decode(answer_ids.squeeze().tolist())
+    correct = pred_text.replace(" ", "").lower() == answer_text.replace(" ", "").lower()
     if accelerator.is_main_process:
         print(
             "Predicted: ",
-            tokenizer.decode(pred.squeeze().tolist()),
+            pred_text,
             "Answer: ",
-            tokenizer.decode(answer_ids.squeeze().tolist()),
+            answer_text,
         )
         # print id as well
         print(
@@ -165,12 +168,18 @@ def load_text_embeddings(str, tokenizer, model, accelerator, replace_double_newl
         double_newline_loc += torch.arange(len(double_newline_loc))
         if len(double_newline_loc) > 0:
             for loc in double_newline_loc:
-                token_ids = torch.cat([token_ids[:, :loc], torch.tensor([[198, 198]]), token_ids[:, loc + 1 :]], dim=1)
+                token_ids = torch.cat(
+                    [
+                        token_ids[:, :loc],
+                        torch.tensor([[198, 198]]),
+                        token_ids[:, loc + 1 :],
+                    ],
+                    dim=1,
+                )
         return token_ids
 
     if replace_double_newline:
         token_ids = replace_double_newline_func(token_ids)
-    token_ids = token_ids.to(accelerator.device)
     with torch.inference_mode():
         embeddings = model.model.embed_tokens(token_ids)
     return embeddings.to(torch.bfloat16)
@@ -196,6 +205,7 @@ def load_results(results_dir):
 
 
 def inference(args):
+    model = args.model
     tokenizer = AutoTokenizer.from_pretrained(
         os.path.join(args.model, "llm"),
         model_max_length=sys.maxsize,
@@ -210,10 +220,9 @@ def inference(args):
     kwargs = {"rope_theta": args.rope_theta} if args.rope_theta is not None else {}
     if "qwen2" in args.model.lower() or "longva" in args.model.lower():
         model = Qwen2ForCausalLM_RingAttn.from_pretrained(
-            args.model,
+            os.path.join(args.model, "llm"),
             torch_dtype=torch.bfloat16,
             _attn_implementation="flash_attention_2",
-            device_map=accelerator.device,
             **kwargs,
         )
     else:
@@ -231,7 +240,7 @@ def inference(args):
     assert (
         len(haystack_embeddings) >= args.max_frame_num
     ), f"Haystack embeddings are not enough. Max frame {args.max_frame_num} is not found. Currently only {len(haystack_embeddings)} frames."
-    haystack_embeddings = haystack_embeddings[: args.max_frame_num].to(accelerator.device)
+    haystack_embeddings = haystack_embeddings[: args.max_frame_num]
     prompt = prompt_templates[args.prompt_template]
     preprompt_embeddings = load_text_embeddings(
         prompt["preprompt"], tokenizer, model, accelerator, args.replace_double_newline
@@ -249,10 +258,8 @@ def inference(args):
         answer = instance["answer"]
         question = instance["question"]
         needle_embedding_list.append(
-            torch.load(args.needle_embedding_dir + f"/{index}.pt", map_location="cpu")
-            .to(torch.bfloat16)
-            .to(accelerator.device)
-        )
+            torch.load(args.needle_embedding_dir + f"/{index}.pt", map_location="cpu").to(torch.bfloat16)
+        )  # .to(accelerator.device))
         answer_embedding_list.append(load_text_embeddings(answer, tokenizer, model, accelerator))
         answer_id_list.append(safe_tokenize(tokenizer, answer))
         question_embeding_list.append(load_text_embeddings(question, tokenizer, model, accelerator))
@@ -272,8 +279,11 @@ def inference(args):
                 print("Context %d, depth %d already done." % (num_frames, round(depth * 100, -1)))
                 continue
             accuracies = []
-            for question_embedding, needle_embedding, answer_embedding, answer_id in zip(
-                question_embeding_list, needle_embedding_list, answer_embedding_list, answer_id_list
+            for (question_embedding, needle_embedding, answer_embedding, answer_id,) in zip(
+                question_embeding_list,
+                needle_embedding_list,
+                answer_embedding_list,
+                answer_id_list,
             ):
                 query_frame_idx = int(depth * num_frames)
                 input_frames = (
@@ -289,15 +299,28 @@ def inference(args):
                     .unsqueeze(0)
                 )
                 input_emebds = torch.cat(
-                    [preprompt_embeddings, input_frames, question_embedding, postprompt_embeddings], dim=1
+                    [
+                        preprompt_embeddings,
+                        input_frames,
+                        question_embedding,
+                        postprompt_embeddings,
+                    ],
+                    dim=1,
                 )
                 correct = eval_forward(
-                    accelerator, model, input_emebds, answer_embedding, tokenizer.pad_token_id, answer_id, tokenizer
+                    accelerator,
+                    model,
+                    input_emebds,
+                    answer_embedding,
+                    tokenizer.pad_token_id,
+                    answer_id,
+                    tokenizer,
                 )
                 gc.collect()
                 torch.cuda.empty_cache()
                 if accelerator.is_main_process:
                     accuracies.append(correct)
+
             if accelerator.is_main_process:
                 result = {
                     "Num. Frame": num_frames,
@@ -308,12 +331,19 @@ def inference(args):
                 all_accuries.append(result)
                 json.dump(
                     result,
-                    open(os.path.join(results_dir, "frame_%d_depth_%d.json" % (num_frames, int(depth * 100))), "w"),
+                    open(
+                        os.path.join(
+                            results_dir,
+                            "frame_%d_depth_%d.json" % (num_frames, int(depth * 100)),
+                        ),
+                        "w",
+                    ),
                 )
 
     if accelerator.is_main_process:
         model_name = args.model.split("/")[-1]
         os.makedirs(f"{args.output_path}/{model_name}", exist_ok=True)
+        # save all_accuries as json
         with open(f"{args.output_path}/{model_name}/all_accuracies.json", "w") as f:
             json.dump(all_accuries, f, indent=4)
     return all_accuries, accelerator
@@ -343,11 +373,12 @@ def plot(args, all_accuries):
         cmap=cmap,
         cbar_kws={"label": "Score"},
     )
+    font_size = 24
 
     # Set the color bar label font size
     cbar = ax.collections[0].colorbar
-    cbar.ax.yaxis.label.set_size(14)
-    cbar.ax.tick_params(labelsize=14)
+    cbar.ax.yaxis.label.set_size(font_size)
+    cbar.ax.tick_params(labelsize=font_size)
 
     # Define the formatter function
     def thousands_formatter(x, pos):
@@ -359,13 +390,16 @@ def plot(args, all_accuries):
     formatted_context_lengths = [thousands_formatter(x, None) for x in context_lengths]
 
     # More aesthetics
-    plt.xlabel("Num. of Frames", fontsize=14)  # X-axis label
-    plt.ylabel("Depth Percent", fontsize=14)  # Y-axis label
+    plt.xlabel("Num. of Frames", fontsize=font_size)  # X-axis label
+    plt.ylabel("Depth Percent", fontsize=font_size)  # Y-axis label
     plt.xticks(
-        ticks=[i + 0.5 for i in range(len(context_lengths))], labels=formatted_context_lengths, rotation=45, fontsize=14
+        ticks=[i + 0.5 for i in range(len(context_lengths))],
+        labels=formatted_context_lengths,
+        rotation=45,
+        fontsize=font_size,
     )
     # plt.xticks(rotation=45, fontsize=14)  # Rotates the x-axis labels to prevent overlap
-    plt.yticks(rotation=0, fontsize=14)  # Ensures the y-axis labels are horizontal
+    plt.yticks(rotation=0, fontsize=font_size)  # Ensures the y-axis labels are horizontal
     plt.tight_layout()  # Fits everything neatly into the figure area
     # save
     model_name = args.model.split("/")[-1]
@@ -403,7 +437,11 @@ if __name__ == "__main__":
     args.add_argument("--depth_interval", type=float, default=0.1)
     args.add_argument("--num_samples", type=int, default=1)
     args.add_argument("--rope_theta", type=float, default=None)
-    args.add_argument("--haystack_dir", type=str, default="video_needle_haystack/data/haystack_embeddings")
+    args.add_argument(
+        "--haystack_dir",
+        type=str,
+        default="video_needle_haystack/data/haystack_embeddings",
+    )
     args.add_argument("--needle_embedding_dir", type=str, default="vision_niah/data/needle_embeddings")
     args.add_argument("--prompt_template", type=str)
     args.add_argument("--replace_double_newline", action="store_true")

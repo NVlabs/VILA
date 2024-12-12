@@ -15,22 +15,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # This file is modified from https://github.com/haotian-liu/LLaVA/
 
-import os
 from unittest import mock
 
-from llava.train.sequence_parallel.monkey_patch import (
-    __init__,
-    _flash_attention_forward,
-    _upad_input,
-    flash_attn_varlen_func_helper,
-    hybrid_attn_varlen_func_helper,
-    new_decoder_forward,
-    new_llamamodel_forward,
-)
+from llava.model.utils.packing import _get_unpad_data
+from llava.train.sequence_parallel.monkey_patch import _flash_attention_forward, _update_causal_mask
 from llava.train.train import train
 from llava.train.transformer_normalize_monkey_patch import patched_normalize
-
-# from llava.train.sequence_parallel.grad_ckpt import unsloth_gradient_checkpointing_enable
 
 
 def __len__(self):
@@ -42,26 +32,11 @@ def __iter__(self):
 
 
 if __name__ == "__main__":
-
     with (
-        # mock.patch("deepspeed.utils.groups._create_zero_param_parallel_group", new=_create_zero_param_parallel_group_vila),
-        mock.patch("transformers.models.llama.modeling_llama.LlamaModel.forward", new=new_llamamodel_forward),
-        mock.patch("transformers.models.llama.modeling_llama.LlamaFlashAttention2._upad_input", new=_upad_input),
-        mock.patch("transformers.models.llama.modeling_llama.LlamaFlashAttention2.__init__", new=__init__),
-        mock.patch(
-            "transformers.models.llama.modeling_llama.LlamaFlashAttention2._flash_attention_forward",
-            new=_flash_attention_forward,
-        ),
-        # Ulysses SP patch
-        mock.patch(
-            "transformers.models.llama.modeling_llama.LlamaFlashAttention2.flash_attn_varlen_func_helper",
-            new=flash_attn_varlen_func_helper,
-        ),
-        # Hybrid SP patch
-        mock.patch(
-            "transformers.models.llama.modeling_llama.LlamaFlashAttention2.hybrid_attn_varlen_func_helper",
-            new=hybrid_attn_varlen_func_helper,
-        ),
+        mock.patch("transformers.models.llama.modeling_llama._flash_attention_forward", new=_flash_attention_forward),
+        mock.patch("transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask", new=_update_causal_mask),
+        mock.patch("transformers.models.qwen2.modeling_qwen2._flash_attention_forward", new=_flash_attention_forward),
+        mock.patch("transformers.models.qwen2.modeling_qwen2.Qwen2Model._update_causal_mask", new=_update_causal_mask),
         mock.patch("transformers.image_processing_utils.normalize", new=patched_normalize),
         mock.patch("accelerate.data_loader.BatchSamplerShard.__len__", new=__len__),
         mock.patch("accelerate.data_loader.BatchSamplerShard.__iter__", new=__iter__),
