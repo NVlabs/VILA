@@ -59,16 +59,11 @@ https://github.com/Efficient-Large-Model/VILA/assets/156256291/c9520943-2478-4f9
 
 Prompt: Elaborate on the visual and narrative elements of the video in detail.
 
-Caption: The video shows a person's hands working on a white surface. They are folding a piece of fabric with a checkered pattern in shades of blue and white. The fabric is being folded into a smaller, more compact shape. The person's fingernails are painted red, and they are wearing a black and red garment. There are also a ruler and a pencil on the surface, suggesting that measurements and precision are involved in the process.
+Response: The video features a person with red nail polish meticulously working on a piece of fabric with a black and white checkered pattern. The individual is dressed in a black top with a red inner layer. The setting includes a white table where various tools such as a ruler, a pencil, and a pin are placed. The person is seen folding the fabric in a precise manner, creating a triangular shape. The background includes a greenish cabinet with drawers, adding a contrasting color to the scene. Throughout the video, the text 'Country Sampler' is visible in the bottom right corner, indicating the source or brand associated with the content. The video emphasizes the careful and detailed process of fabric folding, showcasing the person's skill and attention to detail.
 
-### In context learning
+### Image 
 
-<img src="demo_images/demo_img_1.png" height="239">
-<img src="demo_images/demo_img_2.png" height="250">
-
-### Multi-image reasoning
-
-<img src="demo_images/demo_img_3.png" height="193">
+<img src="demo_images/demo_img.png" height="500">
 
 ### VILA on Jetson Orin
 
