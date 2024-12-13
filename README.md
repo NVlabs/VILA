@@ -253,6 +253,8 @@ We release the following models:
 
 NVILA Core contributors: [Zhijian Liu](https://zhijianliu.com), [Ligeng Zhu](https://lzhu.me/), [Baifeng Shi](https://bfshi.github.io/), [Zhuoyang Zhang](https://openreview.net/profile?id=~Zhuoyang_Zhang1), [Yuming Lou](<>), [Shang Yang](https://ys-2020.github.io/), [Haocheng Xi](<>), [Shiyi Cao](<>), [Yuxian Gu](<>), [Dacheng Li](<>), [Xiuyu Li](<>), [Yunhao Fang](https://seerkfang.github.io/), [Yukang Chen](https://yukangchen.com/), [Cheng-Yu Hsieh](<>), [De-An Huang](<>), [An-Chieh Cheng](<>), [Vishwesh Nath](<>), [Jinyi Hu](<>), [Sifei Liu](<>), [Ranjay Krishna](<>), [Daguang Xu](<>), [Xiaolong Wang](<>), [Pavlo Molchanov](https://www.pmolchanov.com/), [Jan Kautz](https://jankautz.com/), [Hongxu Yin](https://hongxu-yin.github.io/), [Song Han](http://songhan.mit.edu/), [Yao Lu](https://scholar.google.com/citations?user=OI7zFmwAAAAJ&hl=en)
 
+LongVILA contributors: [Yukang Chen](https://yukangchen.com/), [Fuzhao Xue](https://xuefuzhao.github.io/), [Dacheng Li](<https://dachengli1.github.io>), [Qinghao Hu](<https://tonyhao.xyz>), [Ligeng Zhu](https://lzhu.me/), [Xiuyu Li](<https://xiuyuli.com>), [Yunhao Fang](https://seerkfang.github.io/), [Haotian Tang](http://kentang.net/), [Shang Yang](https://ys-2020.github.io/), [Zhijian Liu](https://zhijianliu.com), [Ethan He](<>), [Hongxu Yin](https://hongxu-yin.github.io/), [Pavlo Molchanov](https://www.pmolchanov.com/), [Jan Kautz](<https://jankautz.com>), [Linxi Fan](<https://jimfan.me>), [Yuke Zhu](<https://yukezhu.me>), [Yao Lu](https://scholar.google.com/citations?user=OI7zFmwAAAAJ&hl=en), [Song Han](http://songhan.mit.edu/)
+
 <details>
 <summary> VILA-1.5 contributors </summary>
 
