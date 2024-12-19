@@ -51,6 +51,41 @@ NVILA is a family of open VLMs designed to optimize both **efficiency** and **ac
 
 <sup>NOTE: Measured using the [TinyChat](https://github.com/mit-han-lab/llm-awq/tinychat) backend at batch size = 1.</sup>
 
+### Inference Performance
+#### Decoding Throughput ( Token/sec )
+
+| $~~~~~~$                    |  A100  | 4090  | Orin |
+| --------------------------- |  ----- | ----- | ---- |
+| NVILA-3B-Baseline           |  140.6 | 190.5 | 42.7 |
+| NVILA-3B-TinyChat           |  184.3 | 230.5 | 45.0 |
+| NVILA-Lite-3B-Baseline      |  142.3 | 190.0 | 41.3 |
+| NVILA-Lite-3B-TinyChat      |  186.0 | 233.9 | 44.9 |
+| NVILA-8B-Baseline           |  82.1  | 61.9  | 11.6 |
+| NVILA-8B-TinyChat           |  186.8 | 162.7 | 28.1 |
+| NVILA-Lite-8B-Baseline      |  84.0  | 62.0  | 11.6 |
+| NVILA-Lite-8B-TinyChat      |  181.8 | 167.5 | 32.8 |
+| NVILA-Video-8B-Baseline *   |  73.2  | 58.4  | 10.9 |
+| NVILA-Video-8B-TinyChat *   |  151.8 | 145.0 | 32.3 |
+
+#### TTFT (Time-To-First-Token) ( Sec )
+
+| $~~~~~~$                    |   A100  |  4090  |  Orin  |
+| --------------------------- |  ------ | ------ | ------ |
+| NVILA-3B-Baseline           |  0.0329 | 0.0269 | 0.1173 |
+| NVILA-3B-TinyChat           |  0.0260 | 0.0188 | 0.1359 |
+| NVILA-Lite-3B-Baseline      |  0.0318 | 0.0274 | 0.1195 |
+| NVILA-Lite-3B-TinyChat      |  0.0314 | 0.0191 | 0.1241 |
+| NVILA-8B-Baseline           |  0.0434 | 0.0573 | 0.4222 |
+| NVILA-8B-TinyChat           |  0.0452 | 0.0356 | 0.2748 |
+| NVILA-Lite-8B-Baseline      |  0.0446 | 0.0458 | 0.2507 |
+| NVILA-Lite-8B-TinyChat      |  0.0391 | 0.0297 | 0.2097 |
+| NVILA-Video-8B-Baseline *   |  0.7190 | 0.8840 | 5.8236 |
+| NVILA-Video-8B-TinyChat *   |  0.6692 | 0.6815 | 5.8425 |
+
+<sup>NOTE: Measured using the [TinyChat](https://github.com/mit-han-lab/llm-awq/tinychat) backend at batch size = 1, dynamic_s2 disabled, and num_video_frames = 64. We use W4A16 LLM and W8A8 Vision Tower for Tinychat and the baseline precision is FP16.</sup>
+
+<sup>*: Measured with video captioning task. Otherwise, measured with image captioning task.</sup>
+
 ## VILA Examples
 
 ### Image
