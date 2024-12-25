@@ -810,7 +810,6 @@ class LlavaMetaForCausalLM(ABC):
         logging.info("[XGrammar] Compiling grammar for contrained output")
 
         if self.grammar_compiler is None:
-            # logging.info(f"[XGrammar] {self.tokenizer}, {self.tokenizer.vocab_size}, {self.vocab_size}")
             self.grammar_compiler = xgr.GrammarCompiler(
                 xgr.TokenizerInfo.from_huggingface(self.tokenizer, vocab_size=self.vocab_size)
             )
