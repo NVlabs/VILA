@@ -24,7 +24,7 @@ dependencies = [
     "datasets==2.16.1", "openai==1.8.0", "webdataset==0.2.86",
     "nltk==3.3", "pywsd==1.2.4", "opencv-python-headless==4.8.0.76",
     "s2wrapper@git+https://github.com/bfshi/scaling_on_scales",
-    "tyro", "pytest", "pre-commit", "loguru", "hydra-core"
+    "tyro", "pytest", "pre-commit", "loguru", "hydra-core", "xgrammar"
 ]
 
 [project.scripts]
