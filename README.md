@@ -8,7 +8,7 @@
 [![Model License](https://img.shields.io/badge/MODEL%20License-CC%20By%20NC%204.0-red.svg)](MODEL_LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
-[NVILA arXiv](https://arxiv.org/abs/2412.04468) / [NVILA Demo](https://vila.mit.edu/) / [NVILA Models (coming soon)](https://huggingface.co/collections/Efficient-Large-Model/nvila-674f8163543890b35a91b428) / [Subscribe](https://forms.gle/6nf1QdPYdvC2vgxM8)
+[NVILA arXiv](https://arxiv.org/abs/2412.04468) / [NVILA Demo](https://vila.mit.edu/) / [NVILA Models](https://huggingface.co/collections/Efficient-Large-Model/nvila-674f8163543890b35a91b428) / [Subscribe](https://forms.gle/6nf1QdPYdvC2vgxM8)
 
 ## 💡 Introduction
 
