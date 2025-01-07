@@ -115,13 +115,13 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 ## Installation
 
 1.  Install [Anaconda Distribution](https://www.anaconda.com/download).
-1.  Install the necessary Python packages in the environment.
+2.  Install the necessary Python packages in the environment.
 
     ```bash
     ./environment_setup.sh vila
     ```
 
-1.  (Optional) If you are an NVIDIA employee with a wandb account, install
+3.  (Optional) If you are an NVIDIA employee with a wandb account, install
     onelogger and enable it by setting `training_args.use_one_logger` to `True`
     in `llava/train/args.py`.
 
@@ -129,7 +129,7 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
     pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
     ```
 
-1.  Activate a conda environment.
+4.  Activate a conda environment.
 
     ```bash
     conda activate vila
