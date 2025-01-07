@@ -427,3 +427,5 @@ class AutoModelForSeq2SeqLMWithValueHead(PreTrainedModelWrapper):
         We call `generate` on the wrapped model.
         """
         return self.pretrained_model.generate(*args, **kwargs)
+
+

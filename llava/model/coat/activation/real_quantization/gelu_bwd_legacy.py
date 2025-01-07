@@ -249,3 +249,5 @@ def fp8_gelu_backward_legacy(x, s_x, g, s_g, QB):
         s_y = s_y.reshape(BS, -1, s_y.shape[-1])
 
     return qy, s_y_max
+
+

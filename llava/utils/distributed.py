@@ -71,3 +71,5 @@ def all_gather(obj: Any) -> List[Any]:
     objs = [None for _ in range(size())]
     dist.all_gather_object(objs, obj)
     return objs
+
+

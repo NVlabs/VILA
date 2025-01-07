@@ -866,3 +866,5 @@ class LlavaMetaForCausalLM(ABC):
         if generation_config.eos_token_id is None:
             generation_config.eos_token_id = self.tokenizer.stop_token_ids
         return generation_config
+
+

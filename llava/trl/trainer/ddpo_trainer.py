@@ -626,3 +626,5 @@ class DDPOTrainer(BaseTrainer):
     def _save_pretrained(self, save_directory):
         self.sd_pipeline.save_pretrained(save_directory)
         self.create_model_card(save_directory)
+
+

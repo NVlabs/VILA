@@ -23,3 +23,5 @@ class FP8Manager:
     """
 
     is_first_microbatch = False
+
+

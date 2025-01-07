@@ -207,3 +207,5 @@ def fp8_division_transpose(x, QB, fp8type, s_y=None, stochastic=False, only_tran
         return y, s_y, y_t  # y_t is expected to be 2D tensor
     else:
         return y_t, s_y
+
+

@@ -60,3 +60,5 @@ class AutoResumeCallback(transformers.TrainerCallback):
                         AutoResume.request_resume()
                 control.should_training_stop = True
                 control.should_save = True
+
+

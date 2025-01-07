@@ -62,3 +62,5 @@ class TSPVideoEncoder(BasicVideoEncoder):
             sep_token_embeds=self.embed_tokens(self.sep_tokens),
         )
         return [process_features(f) for f in features]
+
+

@@ -103,3 +103,5 @@ def extract_media(
                 raise ValueError(f"Unsupported prompt part type: {type(part)}")
         message["value"] = text
     return media
+
+

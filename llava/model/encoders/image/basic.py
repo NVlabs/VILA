@@ -47,3 +47,5 @@ class BasicImageEncoder(BaseEncoder):
             end_token_embeds=self.embed_tokens(self.end_tokens),
         )
         return [process_features(f) for f in features]
+
+

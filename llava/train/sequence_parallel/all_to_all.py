@@ -284,3 +284,5 @@ class SeqAllGather(torch.autograd.Function):
     def backward(ctx: Any, grad_output: Tensor) -> Tuple[None, Tensor]:
         (tensor,) = ctx.saved_tensors
         return None, (None, tensor)
+
+

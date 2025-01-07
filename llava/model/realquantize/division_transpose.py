@@ -303,3 +303,5 @@ def validity_check(BS, SL, CDIM, QB, fp8type=torch.float8_e4m3fn):
     import IPython
 
     IPython.embed()
+
+

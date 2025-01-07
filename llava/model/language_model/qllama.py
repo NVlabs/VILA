@@ -304,3 +304,5 @@ class QLlamaForSequenceClassification(QLlamaPreTrainedModel):
 AutoConfig.register("qllama", QLlamaConfig)
 AutoModel.register(QLlamaConfig, QLlamaModel)
 AutoModelForCausalLM.register(QLlamaConfig, QLlamaForCausalLM)
+
+

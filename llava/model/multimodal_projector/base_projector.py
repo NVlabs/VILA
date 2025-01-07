@@ -226,3 +226,5 @@ class MultimodalProjector(PreTrainedModel):
 
 AutoConfig.register("v2l_projector", MultimodalProjectorConfig)
 AutoModel.register(MultimodalProjectorConfig, MultimodalProjector)
+
+

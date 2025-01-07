@@ -541,3 +541,5 @@ class InternVisionModel(PreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
+
+

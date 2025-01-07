@@ -45,3 +45,5 @@ with open(processed_info_file, "w") as f:
     json.dump(new_records, f)
 
 print(len(new_records))
+
+

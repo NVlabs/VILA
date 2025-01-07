@@ -59,3 +59,5 @@ def parse_choice(response, all_choices, index2ans=None):
         pred_index = candidates[0]
 
     return pred_index
+
+

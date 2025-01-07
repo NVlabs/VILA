@@ -229,3 +229,5 @@ if __name__ == "__main__":
     jinfo = json.load(open(json_path))
     img_t = load_video(video_path, jinfo=jinfo)
     print(img_t)
+
+

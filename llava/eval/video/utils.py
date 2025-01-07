@@ -21,3 +21,5 @@ def get_client():
         raise ValueError("At least provide one format for gpt assisted benchmarking")
 
     return client
+
+

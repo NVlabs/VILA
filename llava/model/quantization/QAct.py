@@ -509,3 +509,5 @@ if __name__ == "__main__":
     print(if_nan)
 
     Q = block_quant(Binput, True, 8, stochastic=False, epsilon=1e-8)
+
+

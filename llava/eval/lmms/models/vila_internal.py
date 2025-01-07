@@ -139,3 +139,5 @@ class VILA(lmms):
 
     def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
         raise NotImplementedError
+
+

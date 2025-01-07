@@ -174,3 +174,5 @@ def process_multi_img(self, instance: Dict[str, Any], index: int) -> List[Dict[s
     assert len(medias) == 0, f"#Num of <images> does not match the number of images in the instance. {instance}"
 
     return messages
+
+

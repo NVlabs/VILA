@@ -66,3 +66,5 @@ with open(jsonl_path, "w") as jsonl_file:
 
 # Now 'images' contains all the opened images from the image_root directory
 print(f"Successfully opened {len(images)} out of {len(image_files)} images.")
+
+

@@ -40,3 +40,5 @@ class CLIPVisionTowerS2(VisionTowerS2):
         self.image_processor.crop_size["height"] = self.image_processor.crop_size["width"] = self.scales[-1]
 
         self.is_loaded = True
+
+

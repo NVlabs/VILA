@@ -295,3 +295,5 @@ def fp8_layernorm_noparam_backward(x, s_x, g, QB, m, v, num_warps, stochastic=Fa
         dx = dx.reshape(BS, -1, dx.shape[-1])
 
     return dx
+
+

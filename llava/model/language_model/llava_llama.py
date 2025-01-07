@@ -160,3 +160,5 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
 
 AutoConfig.register("llava_llama", LlavaLlamaConfig)
 AutoModel.register(LlavaLlamaConfig, LlavaLlamaModel)
+
+

@@ -853,3 +853,5 @@ class LLaVATrainer(Trainer):
                     json.dump(self.state.log_history, f, indent=4)
 
         self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)
+
+

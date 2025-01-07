@@ -231,3 +231,5 @@ class SymmQuantizer(torch.autograd.function.InplaceFunction):
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output, None, None, None, None, None
+
+

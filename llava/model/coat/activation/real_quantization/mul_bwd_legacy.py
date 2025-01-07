@@ -366,3 +366,5 @@ def fp8_mul_backward_legacy(
         s_y2 = s_y2.reshape(BS, -1, s_y2.shape[-1])
 
     return y1, s_y1, y2, s_y2
+
+

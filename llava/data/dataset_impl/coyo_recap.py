@@ -88,3 +88,5 @@ class LazyCoyoWebRecapDataset(LazyCoyoWebDataset):
         else:
             self.caption_choice = data_args.caption_choice
         print(f"Current caption choice: {self.caption_choice}.")
+
+

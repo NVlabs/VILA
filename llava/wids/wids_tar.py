@@ -79,3 +79,5 @@ class TarFileReader:
     def close(self):
         # Close the tar file
         self.tar_file.close()
+
+

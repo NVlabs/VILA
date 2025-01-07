@@ -272,3 +272,5 @@ if __name__ == "__main__":
     # Q_X = block_quant(B_X, symm=True, bits=2, stochastic=False)
     # print(Q_X)
     # print(Q_X.shape)
+
+

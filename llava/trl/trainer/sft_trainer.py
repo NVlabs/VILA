@@ -510,3 +510,5 @@ class SFTTrainer(Trainer):
         hook_handle = embeddings.register_forward_hook(neftune_post_forward_hook)
         self.neftune_hook_handle = hook_handle
         return model
+
+

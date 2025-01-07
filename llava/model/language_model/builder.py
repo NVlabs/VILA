@@ -213,3 +213,5 @@ def build_llm_and_tokenizer(
     # TODO(ligeng): is this necessary for llava?
     config.hidden_size = llm.config.hidden_size
     return llm, tokenizer
+
+

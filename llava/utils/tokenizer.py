@@ -181,3 +181,5 @@ def infer_stop_tokens(tokenizer: transformers.PreTrainedTokenizer) -> List[str]:
             stop_token = tokenizer.decode(template[k + 1])
             stop_tokens.add(stop_token)
     return list(stop_tokens)
+
+

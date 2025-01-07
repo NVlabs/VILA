@@ -99,3 +99,5 @@ def setup_chat_format(
         model.generation_config.pad_token_id = tokenizer.pad_token_id
 
     return model, tokenizer
+
+

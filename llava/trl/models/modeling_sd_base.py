@@ -642,3 +642,5 @@ class DefaultDDPOStableDiffusionPipeline(DDPOStableDiffusionPipeline):
             del load_model
         else:
             raise ValueError(f"Unknown model type {type(models[0])}")
+
+

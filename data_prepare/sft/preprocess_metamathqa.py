@@ -25,3 +25,5 @@ for id, record in enumerate(data):
 
 with open(json_file_processed, "w") as f:
     json.dump(records, f)
+
+

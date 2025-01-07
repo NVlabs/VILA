@@ -61,3 +61,5 @@ class SiglipVisionTowerDynamicS2(VisionTowerDynamicS2):
         # Make sure it crops/resizes the image to the largest scale in self.scales to maintain high-res information
         self.image_processor.size["height"] = self.image_processor.size["width"] = self.scales[0]
         self.is_loaded = True
+
+

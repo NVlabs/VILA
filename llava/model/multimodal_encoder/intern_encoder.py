@@ -88,3 +88,5 @@ class InternVisionTowerS2(VisionTowerS2):
 
 AutoConfig.register("intern_vit_6b", InternVisionConfig)
 AutoModel.register(InternVisionConfig, InternVisionModel)
+
+

@@ -169,3 +169,5 @@ def save(fpath: str, obj: Any, **kwargs) -> None:
             return
 
     raise NotImplementedError(f'"{fpath}" cannot be saved.')
+
+

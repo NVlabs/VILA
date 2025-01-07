@@ -326,3 +326,5 @@ class TextCapsBleu4Evaluator:
 
         bleu4 = score[3]  # score is (Bleu-1, Bleu-2, Bleu-3, Bleu-4)
         return bleu4
+
+

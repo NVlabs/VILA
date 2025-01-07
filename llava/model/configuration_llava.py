@@ -87,3 +87,5 @@ class LlavaConfig(PretrainedConfig):
 
         self.image_encoder = image_encoder
         self.video_encoder = video_encoder
+
+

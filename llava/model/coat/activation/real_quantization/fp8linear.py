@@ -242,3 +242,5 @@ class QuantLinearTE(Function):
                 )
 
         return grad_input, grad_weight, grad_bias, None, None
+
+

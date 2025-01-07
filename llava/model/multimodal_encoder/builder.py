@@ -68,3 +68,5 @@ def build_vision_tower(model_name_or_path: str, config: PretrainedConfig) -> Pre
         vision_tower.config.hidden_size if not (use_s2 or use_dynamic_s2) else vision_tower.hidden_size
     )
     return vision_tower
+
+

@@ -372,3 +372,5 @@ if __name__ == "__main__":
     # time_check(4096, 11008, 5380)
     # validity_check(2048, 1024, 4096)
     benchmark.run(show_plots=True, print_data=True)
+
+

@@ -282,3 +282,5 @@ def sp_loss_rescale(shift_labels, loss):
 #     # dist.all_reduce(global_active_sum, group=get_ulysses_sp_pg())
 #     # loss_weight = num_active_elements / global_active_sum * PROCESS_GROUP_MANAGER.sp_degree
 #     # return loss_weight
+
+

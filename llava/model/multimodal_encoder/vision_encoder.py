@@ -247,3 +247,5 @@ class VisionTowerDynamicS2(VisionTower):
     @property
     def hidden_size(self):
         return self.config.hidden_size * len(self.scales)
+
+

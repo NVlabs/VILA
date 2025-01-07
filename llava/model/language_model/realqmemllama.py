@@ -666,3 +666,5 @@ class QMemLlamaForSequenceClassification(QMemLlamaPreTrainedModel):
 AutoConfig.register("qmemllama", QMemLlamaConfig)
 AutoModel.register(QMemLlamaConfig, QMemLlamaModel)
 AutoModelForCausalLM.register(QMemLlamaConfig, QMemLlamaForCausalLM)
+
+

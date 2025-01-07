@@ -191,3 +191,5 @@ def _floatExMy_stochastic_quantize_kernel(
     y = y.to(x_ptr.dtype.element_ty)
 
     tl.store(output_ptr + offsets, y, mask=mask)
+
+
