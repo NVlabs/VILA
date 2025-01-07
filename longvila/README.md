@@ -68,13 +68,13 @@ We conduct continued training (Stage4 and Stage5) based on an VILA model as foll
 This is the first stage of LongVILA training, in which we tune the LLM in the VILA model to long context using SlimPajama dataset. For 7B model, this stage runs on a 8xA100 node for 64k context extension and at leat two 8xA100 node for 256k context extension.
 
 ```bash
-bash scripts/v1_5/train/8b/4_extend_llm_64k.sh [STAGE3_PATH] [OUTPUT_NAME] [DATA_FILE]
+bash longvila/train/4_extend_llm_64k.sh [STAGE3_PATH] [OUTPUT_NAME] [DATA_FILE]
 ```
 
 The script takes in three arguments. `STAGE3_PATH` points to the trained VILA model. `OUTPUT_NAME` is the desired folder name under `checkpoints` that stores the final checkpoint. `DATA_FILE` is the data that store 64k-context Slimpajama data.
 
 ```bash
-bash scripts/v1_5/train/8b/4_extend_llm_256k.sh [EXTENDED_64k_PATH] [OUTPUT_NAME] [DATA_FILE]
+bash longvila/train/4_extend_llm_256k.sh [EXTENDED_64k_PATH] [OUTPUT_NAME] [DATA_FILE]
 ```
 
 The script is a progressive training from 64k context to 256 context. `EXTENDED_64k_PATH` points to the `OUTPUT_NAME` of `4_extend_llm_64k.sh`. `DATA_FILE` is the data that store 256k-context Slimpajama data. If you do not need to train models longer than 256 frames (e.g., 512 or 1024 frames), you do not need to train this 256k context step.
@@ -86,12 +86,12 @@ Similar steps for 512k and 1M training scripts.
 This is the last stage of LongVILA training, in which we tune the model to follow long videos instructions. This stage runs on 32 8xH100 nodes for all different configurations (i.e. 256 frames, and 512 frames).
 
 ```bash
-bash scripts/v1_5/train/8b/5_long_sft_256frames.sh [EXTENDED_64k_PATH]
+bash longvila/train/5_long_sft_256frames.sh [EXTENDED_64k_PATH]
 [OUTPUT_NAME]
 ```
 
 ```bash
-bash scripts/v1_5/train/8b/5_long_sft_512frames.sh [EXTENDED_256k_PATH]
+bash longvila/train/5_long_sft_512frames.sh [EXTENDED_256k_PATH]
 [OUTPUT_NAME]
 ```
 
@@ -116,7 +116,7 @@ Similar steps for 1024-frame and 2048-frame training scripts.
 
 ### Needle in the Haystack Experiments
 
-`bash scripts/v1_5/eval/needle.sh LongVILA-7B-1M Efficient-Large-Model/qwen2-7b-longvila-1M $VIDEO_PATH 6000 300`
+`bash scripts/eval/needle.sh LongVILA-7B-1M Efficient-Large-Model/qwen2-7b-longvila-1M $VIDEO_PATH 6000 300`
 
 ### Benchmarks
 
