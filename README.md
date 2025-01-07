@@ -217,7 +217,28 @@ vila-infer \
     --media https://huggingface.co/datasets/Efficient-Large-Model/VILA-inference-demos/resolve/main/OAI-sora-tokyo-walk.mp4
 ```
 
-<sup>NOTE: `vila-infer` is also compatible with VILA-1.5 models. You may find the usage example in [tests/bash/test_inference.sh](./tests/bash/test_inference.sh).</sup>
+`vila-infer` is also compatible with VILA-1.5 models. For example:
+
+```bash
+vila-infer \
+    --model-path Efficient-Large-Model/VILA1.5-3b \
+    --conv-mode vicuna_v1 \
+    --text "Please describe the image" \
+    --media demo_images/demo_img.png
+
+vila-infer \
+    --model-path Efficient-Large-Model/VILA1.5-3b \
+    --conv-mode vicuna_v1 \
+    --text "Please describe the video" \
+    --media https://huggingface.co/datasets/Efficient-Large-Model/VILA-inference-demos/resolve/main/OAI-sora-tokyo-walk.mp4
+
+
+vila-infer \
+    --model-path Efficient-Large-Model/NVILA-15B \
+    --conv-mode auto \
+    --text "Please describe the video" \
+    --media https://huggingface.co/datasets/Efficient-Large-Model/VILA-inference-demos/resolve/main/OAI-sora-tokyo-walk.mp4
+```
 
 ## Quantization and Deployment
 
