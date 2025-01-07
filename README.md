@@ -114,15 +114,26 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 
 ## Installation
 
-```bash
-./environment_setup.sh vila
-```
+1.  Install [Anaconda Distribution](https://www.anaconda.com/download).
+2.  Install the necessary Python packages in the environment.
 
-If you are an NVIDIA employee with wandb account, install onelogger and enable it via setting training_args.use_one_logger to True in `llava/train/args.py`
+    ```bash
+    ./environment_setup.sh vila
+    ```
 
-```bash
-pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
-```
+3.  (Optional) If you are an NVIDIA employee with a wandb account, install
+    onelogger and enable it by setting `training_args.use_one_logger` to `True`
+    in `llava/train/args.py`.
+
+    ```bash
+    pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
+    ```
+
+4.  Activate a conda environment.
+
+    ```bash
+    conda activate vila
+    ```
 
 ## Training
 
@@ -196,7 +207,7 @@ vila-infer \
     --model-path Efficient-Large-Model/NVILA-15B \
     --conv-mode auto \
     --text "Please describe the image" \
-    --media inference_test/test_data/caption_meat.jpeg
+    --media demo_images/demo_img.png
 
 # video description
 vila-infer \
@@ -206,7 +217,28 @@ vila-infer \
     --media https://huggingface.co/datasets/Efficient-Large-Model/VILA-inference-demos/resolve/main/OAI-sora-tokyo-walk.mp4
 ```
 
-<sup>NOTE: `vila-infer` is also compatible with VILA-1.5 models. You may find the usage example in [tests/bash/test_inference.sh](./tests/bash/test_inference.sh).</sup>
+`vila-infer` is also compatible with VILA-1.5 models. For example:
+
+```bash
+vila-infer \
+    --model-path Efficient-Large-Model/VILA1.5-3b \
+    --conv-mode vicuna_v1 \
+    --text "Please describe the image" \
+    --media demo_images/demo_img.png
+
+vila-infer \
+    --model-path Efficient-Large-Model/VILA1.5-3b \
+    --conv-mode vicuna_v1 \
+    --text "Please describe the video" \
+    --media https://huggingface.co/datasets/Efficient-Large-Model/VILA-inference-demos/resolve/main/OAI-sora-tokyo-walk.mp4
+
+
+vila-infer \
+    --model-path Efficient-Large-Model/NVILA-15B \
+    --conv-mode auto \
+    --text "Please describe the video" \
+    --media https://huggingface.co/datasets/Efficient-Large-Model/VILA-inference-demos/resolve/main/OAI-sora-tokyo-walk.mp4
+```
 
 ## Quantization and Deployment
 
