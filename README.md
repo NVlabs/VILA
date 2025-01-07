@@ -207,7 +207,7 @@ vila-infer \
     --model-path Efficient-Large-Model/NVILA-15B \
     --conv-mode auto \
     --text "Please describe the image" \
-    --media demo_images/demo_image.png
+    --media demo_images/demo_img.png
 
 # video description
 vila-infer \
