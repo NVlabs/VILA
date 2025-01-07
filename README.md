@@ -1,21 +1,20 @@
-<p align="center">
-  <img src="demo_images/nvila-logo.png" width="20%"/>
-</p>
 
-# NVILA: Efficient Frontier Visual Language Models
+
+# NVIDIA Cosmos Nemotron: Optimized Vision Language Models
 
 [![Code License](https://img.shields.io/badge/Code%20License-Apache_2.0-green.svg)](CODE_LICENSE)
 [![Model License](https://img.shields.io/badge/MODEL%20License-CC%20By%20NC%204.0-red.svg)](MODEL_LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
-[NVILA arXiv](https://arxiv.org/abs/2412.04468) / [NVILA Demo](https://vila.mit.edu/) / [NVILA Models](https://huggingface.co/collections/Efficient-Large-Model/nvila-674f8163543890b35a91b428) / [Subscribe](https://forms.gle/6nf1QdPYdvC2vgxM8)
+[arXiv](https://arxiv.org/abs/2412.04468) / [Demo](https://vila.mit.edu/) / [Models](https://huggingface.co/collections/Efficient-Large-Model/nvila-674f8163543890b35a91b428) / [Subscribe](https://forms.gle/6nf1QdPYdvC2vgxM8)
 
 ## 💡 Introduction
 
-NVILA is a family of open VLMs designed to optimize both **efficiency** and **accuracy** for efficient **video understanding** and **multi-image understanding** . Building on top of VILA, we improve its model architecture by first scaling up the spatial and temporal resolutions, and then compressing visual tokens. This "scale-then-compress" approach enables NVILA to efficiently process high-resolution images and long videos. We also conduct a systematic investigation to enhance the efficiency of NVILA throughout its entire lifecycle, from training and fine-tuning to deployment. NVILA matches or surpasses the accuracy of many leading open and proprietary VLMs across a wide range of image and video benchmarks. At the same time, it reduces training costs by 4.5×, fine-tuning memory usage by 3.4×, pre-filling latency by 1.6-2.2×, and decoding latency by 1.2-2.8×. We make our code and models available to facilitate reproducibility.
+NVIDIA Cosmos Nemotron is a family of open VLMs designed to optimize both efficiency and accuracy for efficient video understanding and multi-image understanding. 
 
 ## 💡 News
 
+- \[2025/1\] NVILA becomes part of Cosmos Nemotron family of state of the art family of state-of-the-art vision language models (VLMs) for  diverse multimodal AI tasks across the edge, data center, and cloud.
 - \[2024/12\] We release [NVILA](https://arxiv.org/abs/2412.04468) (a.k.a VILA2.0) that explores the full stack efficiency of multi-modal design, achieving cheaper training, faster deployment and better performance.
 - \[2024/12\] We release [LongVILA](./longvila/README.md) that supports long video understanding, with long-context VLM with more than 1M context length and multi-modal sequence parallel system.
 - \[2024/10\] VILA-M3, a SOTA medical VLM finetuned on VILA1.5 is released! VILA-M3 significantly outperforms Llava-Med and on par w/ Med-Gemini and is fully opensourced! [code](https://github.com/Project-MONAI/VLM#-news) [model](https://huggingface.co/MONAI)
@@ -52,6 +51,7 @@ NVILA is a family of open VLMs designed to optimize both **efficiency** and **ac
 <sup>NOTE: Measured using the [TinyChat](https://github.com/mit-han-lab/llm-awq/tinychat) backend at batch size = 1.</sup>
 
 ### Inference Performance
+
 #### Decoding Throughput ( Token/sec )
 
 | $~~~~~~$                    |  A100  | 4090  | Orin |
@@ -83,28 +83,32 @@ NVILA is a family of open VLMs designed to optimize both **efficiency** and **ac
 | NVILA-Video-8B-TinyChat *   |  0.6692 | 0.6815 | 5.8425 |
 
 <sup>NOTE: Measured using the [TinyChat](https://github.com/mit-han-lab/llm-awq/tinychat) backend at batch size = 1, dynamic_s2 disabled, and num_video_frames = 64. We use W4A16 LLM and W8A8 Vision Tower for Tinychat and the baseline precision is FP16.</sup>
+<sup>\*: Measured with video captioning task. Otherwise, measured with image captioning task.</sup>
 
-<sup>*: Measured with video captioning task. Otherwise, measured with image captioning task.</sup>
+## Cosmos Nemotron Examples
 
-## VILA Examples
-
-### Image
-
-<img src="demo_images/demo_img.png" height="750">
-
-### Video
+### Video captioning
 
 https://github.com/Efficient-Large-Model/VILA/assets/156256291/c9520943-2478-4f97-bc95-121d625018a6
 
 Prompt: Elaborate on the visual and narrative elements of the video in detail.
 
-Response: The video features a person with red nail polish meticulously working on a piece of fabric with a black and white checkered pattern. The individual is dressed in a black top with a red inner layer. The setting includes a white table where various tools such as a ruler, a pencil, and a pin are placed. The person is seen folding the fabric in a precise manner, creating a triangular shape. The background includes a greenish cabinet with drawers, adding a contrasting color to the scene. Throughout the video, the text 'Country Sampler' is visible in the bottom right corner, indicating the source or brand associated with the content. The video emphasizes the careful and detailed process of fabric folding, showcasing the person's skill and attention to detail.
+Caption: The video shows a person's hands working on a white surface. They are folding a piece of fabric with a checkered pattern in shades of blue and white. The fabric is being folded into a smaller, more compact shape. The person's fingernails are painted red, and they are wearing a black and red garment. There are also a ruler and a pencil on the surface, suggesting that measurements and precision are involved in the process.
 
-### VILA on Jetson Orin
+### In context learning
+
+<img src="demo_images/demo_img_1.png" height="239">
+<img src="demo_images/demo_img_2.png" height="250">
+
+### Multi-image reasoning
+
+<img src="demo_images/demo_img_3.png" height="193">
+
+### Cosmos Nemotron on Jetson Orin
 
 https://github.com/Efficient-Large-Model/VILA/assets/7783214/6079374c-0787-4bc4-b9c6-e1524b4c9dc4
 
-### VILA on RTX 4090
+### Cosmos Nemotron on RTX 4090
 
 https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-ad7d-d17c4700539f
 
@@ -114,9 +118,15 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 ./environment_setup.sh vila
 ```
 
+If you are an NVIDIA employee with wandb account, install onelogger and enable it via setting training_args.use_one_logger to True in `llava/train/args.py`
+
+```bash
+pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
+```
+
 ## Training
 
-VILA training contains three steps, for specific hyperparameters, please check out the [scripts/v1_5](scripts/v1_5) folder:
+Cosmos Nemotron training contains three steps, for specific hyperparameters, please check out the [scripts/v1_5](scripts/v1_5) folder:
 
 ### Step-1: Alignment
 
@@ -150,7 +160,7 @@ and the trained models will be saved to `runs/train/nvila-8b-pretraining`.
 
 ### Step-3: Supervised fine-tuning
 
-This is the last stage of VILA training, in which we tune the model to follow multimodal instructions on a subset of M3IT, FLAN and ShareGPT4V. This stage runs on a 8xA100 node.
+This is the last stage of Cosmos Nemotron training, in which we tune the model to follow multimodal instructions on a subset of M3IT, FLAN and ShareGPT4V. This stage runs on a 8xA100 node.
 
 ```bash
 bash scripts/NVILA-Lite/sft.sh runs/train/nvila-8b-pretraining <alias to data>
@@ -200,7 +210,7 @@ vila-infer \
 
 ## Quantization and Deployment
 
-Our VILA models are quantized by [AWQ](https://arxiv.org/abs/2306.00978) into 4 bits for efficient inference on the edge. We provide a push-the-button [script](https://github.com/mit-han-lab/llm-awq/blob/main/scripts/nvila_example.sh) to quantize VILA with AWQ.
+Our VILA models are quantized by [AWQ](https://arxiv.org/abs/2306.00978) into 4 bits for efficient inference on the edge. We provide a push-the-button [script](https://github.com/mit-han-lab/llm-awq/blob/main/scripts/vila_example.sh) to quantize VILA with AWQ.
 
 ### Running VILA on desktop GPUs and edge GPUs
 
