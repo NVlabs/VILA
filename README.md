@@ -114,15 +114,26 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 
 ## Installation
 
-```bash
-./environment_setup.sh vila
-```
+1.  Install [Anaconda Distribution](https://www.anaconda.com/download).
+1.  Install the necessary Python packages in the environment.
 
-If you are an NVIDIA employee with wandb account, install onelogger and enable it via setting training_args.use_one_logger to True in `llava/train/args.py`
+    ```bash
+    ./environment_setup.sh vila
+    ```
 
-```bash
-pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
-```
+1.  (Optional) If you are an NVIDIA employee with a wandb account, install
+    onelogger and enable it by setting `training_args.use_one_logger` to `True`
+    in `llava/train/args.py`.
+
+    ```bash
+    pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
+    ```
+
+1.  Activate a conda environment.
+
+    ```bash
+    conda activate vila
+    ```
 
 ## Training
 
@@ -196,7 +207,7 @@ vila-infer \
     --model-path Efficient-Large-Model/NVILA-15B \
     --conv-mode auto \
     --text "Please describe the image" \
-    --media inference_test/test_data/caption_meat.jpeg
+    --media demo_images/demo_image.png
 
 # video description
 vila-infer \
