@@ -1,6 +1,6 @@
 
 
-# NVIDIA Cosmos Nemotron: Optimized Vision Language Models
+# VILA: Optimized Vision Language Models
 
 [![Code License](https://img.shields.io/badge/Code%20License-Apache_2.0-green.svg)](CODE_LICENSE)
 [![Model License](https://img.shields.io/badge/MODEL%20License-CC%20By%20NC%204.0-red.svg)](MODEL_LICENSE)
@@ -10,7 +10,7 @@
 
 ## 💡 Introduction
 
-NVIDIA Cosmos Nemotron is a family of open VLMs designed to optimize both efficiency and accuracy for efficient video understanding and multi-image understanding. 
+VILA is a family of open VLMs designed to optimize both efficiency and accuracy for efficient video understanding and multi-image understanding. 
 
 ## 💡 News
 
