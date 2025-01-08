@@ -85,7 +85,7 @@ VILA is a family of open VLMs designed to optimize both efficiency and accuracy 
 <sup>NOTE: Measured using the [TinyChat](https://github.com/mit-han-lab/llm-awq/tinychat) backend at batch size = 1, dynamic_s2 disabled, and num_video_frames = 64. We use W4A16 LLM and W8A8 Vision Tower for Tinychat and the baseline precision is FP16.</sup>
 <sup>\*: Measured with video captioning task. Otherwise, measured with image captioning task.</sup>
 
-## Cosmos Nemotron Examples
+## VILA Examples
 
 ### Video captioning
 
@@ -104,11 +104,11 @@ Caption: The video shows a person's hands working on a white surface. They are f
 
 <img src="demo_images/demo_img_3.png" height="193">
 
-### Cosmos Nemotron on Jetson Orin
+### VILA on Jetson Orin
 
 https://github.com/Efficient-Large-Model/VILA/assets/7783214/6079374c-0787-4bc4-b9c6-e1524b4c9dc4
 
-### Cosmos Nemotron on RTX 4090
+### VILA on RTX 4090
 
 https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-ad7d-d17c4700539f
 
@@ -137,7 +137,7 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 
 ## Training
 
-Cosmos Nemotron training contains three steps, for specific hyperparameters, please check out the [scripts/v1_5](scripts/v1_5) folder:
+VILA training contains three steps, for specific hyperparameters, please check out the [scripts/v1_5](scripts/v1_5) folder:
 
 ### Step-1: Alignment
 
@@ -171,7 +171,7 @@ and the trained models will be saved to `runs/train/nvila-8b-pretraining`.
 
 ### Step-3: Supervised fine-tuning
 
-This is the last stage of Cosmos Nemotron training, in which we tune the model to follow multimodal instructions on a subset of M3IT, FLAN and ShareGPT4V. This stage runs on a 8xA100 node.
+This is the last stage of VILA training, in which we tune the model to follow multimodal instructions on a subset of M3IT, FLAN and ShareGPT4V. This stage runs on a 8xA100 node.
 
 ```bash
 bash scripts/NVILA-Lite/sft.sh runs/train/nvila-8b-pretraining <alias to data>
