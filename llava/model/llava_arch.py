@@ -375,7 +375,8 @@ class LlavaMetaModel(ABC):
                 for x, block_size in zip(image_features, new_block_sizes)
             ]  # list of 1 * C * H * W tensors
             image_features = [rearrange(x, "1 c h w -> (h w) c") for x in image_features]  # list of N * C tensors
-            image_features = torch.stack(image_features, dim=0)
+            if all([feature.shape[0] == image_features[0].shape[0] for feature in image_features]):
+                image_features = torch.stack(image_features, dim=0)
         else:
             image_features = self.get_vision_tower()(images)
             image_features = self.get_mm_projector()(image_features)
