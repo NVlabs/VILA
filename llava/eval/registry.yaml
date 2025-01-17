@@ -127,7 +127,7 @@ lmms-mme:
         - regression
     metrics:
         cognition: results/mme/mme_cognition_score,none
-        perception: results/mme/mme_percetion_score,none
+        perception: results/mme/mme_perception_score,none
 
 lmms-mmmu_pro:
     tags:
@@ -276,49 +276,49 @@ lmms-videomme-8:
         - video
         - regression
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-8:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-videomme-16:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-16:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-videomme-32:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-32:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-videomme-64:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-64:
     tags:
@@ -326,14 +326,14 @@ lmms-videomme_w_subtitle-64:
         - video
         - regression
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-videomme-128:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-128:
     tags:
@@ -341,14 +341,14 @@ lmms-videomme_w_subtitle-128:
         - video
         - regression
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-videomme-256:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-256:
     tags:
@@ -356,14 +356,14 @@ lmms-videomme_w_subtitle-256:
         - video
         - regression
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-videomme-512:
     tags:
         - local
         - video
     metrics:
-        accuracy: results/videomme/videomme_percetion_score,none
+        accuracy: results/videomme/videomme_perception_score,none
 
 lmms-videomme_w_subtitle-512:
     tags:
@@ -371,7 +371,7 @@ lmms-videomme_w_subtitle-512:
         - video
         - regression
     metrics:
-        accuracy: results/videomme_w_subtitle/videomme_percetion_score,none
+        accuracy: results/videomme_w_subtitle/videomme_perception_score,none
 
 lmms-vizwiz_vqa_test:
     tags:
