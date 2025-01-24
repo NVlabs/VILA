@@ -242,7 +242,7 @@ vila-infer \
 
 ## Quantization and Deployment
 
-Our VILA models are quantized by [AWQ](https://arxiv.org/abs/2306.00978) into 4 bits for efficient inference on the edge. We provide a push-the-button [script](https://github.com/mit-han-lab/llm-awq/blob/main/scripts/vila_example.sh) to quantize VILA with AWQ.
+Our VILA models are quantized by [AWQ](https://arxiv.org/abs/2306.00978) into 4 bits for efficient inference on the edge. We provide a push-the-button [script](https://github.com/mit-han-lab/llm-awq/blob/main/scripts/nvila_example.sh) to quantize VILA with AWQ.
 
 ### Running VILA on desktop GPUs and edge GPUs
 
