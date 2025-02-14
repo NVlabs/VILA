@@ -416,7 +416,7 @@ class LlavaMetaForCausalLM(ABC):
         # This is a workaround to make sure the dummy embeddings are consumed
         while media_embeds.get("dummy"):
             dummy_embed = media_embeds["dummy"].popleft()
-            text_embeds += torch.sum(dummy_embed) * 0
+            text_embeds = text_embeds + (torch.sum(dummy_embed) * 0)
 
         # Remove padding
         batch_size = labels.shape[0]
