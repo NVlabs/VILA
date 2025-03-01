@@ -187,7 +187,7 @@ def build_llm_and_tokenizer(
     if not has_tokenizer(llm_path):
         raise ValueError(f"Cannot find tokenizer in {llm_path}.")
 
-    tokenizer = AutoTokenizer.from_pretrained(llm_path, padding_side="right", use_fast=False, legacy=False)
+    tokenizer = AutoTokenizer.from_pretrained(llm_path, padding_side="right", use_fast=True, legacy=False)
     if model_max_length is not None:
         tokenizer.model_max_length = model_max_length
 

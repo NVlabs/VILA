@@ -14,8 +14,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional
+from typing import Literal, Optional
 
+from pydantic import BaseModel, Field
 from transformers import PretrainedConfig
 
 
@@ -89,3 +90,12 @@ class LlavaConfig(PretrainedConfig):
         self.video_encoder = video_encoder
 
 
+
+
+class JsonSchemaResponseFormat(BaseModel):
+    schema_: str = Field(alias="schema")
+
+
+class ResponseFormat(BaseModel):
+    type: Literal["text", "json_object", "json_schema"]
+    json_schema: Optional[JsonSchemaResponseFormat] = None

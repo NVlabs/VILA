@@ -28,12 +28,12 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from einops import rearrange
 from hydra.utils import instantiate
-from transformers import AutoConfig, GenerationConfig, PreTrainedModel
+from transformers import AutoConfig, GenerationConfig, LogitsProcessor
 from transformers.modeling_utils import ContextManagers, no_init_weights
 
-from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
+from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX, NUM_EXTRA_TOKENS
 from llava.mm_utils import process_image, process_images
-from llava.model.configuration_llava import LlavaConfig
+from llava.model.configuration_llava import LlavaConfig, ResponseFormat
 from llava.model.language_model.builder import build_llm_and_tokenizer
 from llava.model.multimodal_encoder.builder import build_vision_tower
 from llava.model.multimodal_projector.builder import build_mm_projector
@@ -74,6 +74,12 @@ class LlavaMetaModel(ABC):
         self.llm, self.tokenizer = build_llm_and_tokenizer(llm_cfg, config, *args, **kwargs)
         self.vision_tower = build_vision_tower(vision_tower_cfg, config)
         self.mm_projector = build_mm_projector(mm_projector_cfg, config)
+        # NOTE(ligeng): for xgrammer init, <image> <vila/video> and <vila/sentinel>
+        self.vocab_size = config.llm_cfg["vocab_size"] + NUM_EXTRA_TOKENS
+
+        # XGrammar tokenizer and grammar compiler
+        # lazy init only when specified json output during inference
+        self.grammar_compiler = None
 
         self.encoders = {}
         for name in ["image", "video"]:
@@ -770,6 +776,27 @@ class LlavaMetaForCausalLM(ABC):
 
         return inputs_embeds_p, attention_mask_p, position_ids_p, labels_p
 
+    def get_xgr_logits_processor(self, response_format: ResponseFormat) -> List[LogitsProcessor]:
+        # Convert response format to logits processor
+        import xgrammar as xgr
+
+        logging.info("[XGrammar] Compiling grammar for contrained output")
+
+        if self.grammar_compiler is None:
+            self.grammar_compiler = xgr.GrammarCompiler(
+                xgr.TokenizerInfo.from_huggingface(self.tokenizer, vocab_size=self.vocab_size)
+            )
+
+        if response_format.type == "json_schema":
+            compiled_grammar = self.grammar_compiler.compile_json_schema(
+                response_format.json_schema.schema_,
+                indent=2,
+            )
+        else:
+            compiled_grammar = self.grammar_compiler.compile_builtin_json_grammar()
+
+        return [xgr.contrib.hf.LogitsProcessor(compiled_grammar)]
+
     @torch.inference_mode()
     def generate(
         self,
@@ -783,9 +810,20 @@ class LlavaMetaForCausalLM(ABC):
         return self.llm.generate(inputs_embeds=inputs_embeds, attention_mask=attention_mask, **generation_kwargs)
 
     @torch.inference_mode()
-    def generate_content(self, prompt: Union[str, List], generation_config: Optional[GenerationConfig] = None) -> str:
+    def generate_content(
+        self,
+        prompt: Union[str, List],
+        generation_config: Optional[GenerationConfig] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> str:
         # TODO(zhijianl): Support directly taking conversation as input
         conversation = [{"from": "human", "value": prompt}]
+
+        # Convert response format to logits processor
+        if response_format:
+            xgr_logits_processor = self.get_xgr_logits_processor(response_format)
+        else:
+            xgr_logits_processor = None
 
         # Extract media from the conversation
 
@@ -835,6 +873,7 @@ class LlavaMetaForCausalLM(ABC):
                 media=media,
                 media_config=media_config,
                 generation_config=generation_config,
+                logits_processor=xgr_logits_processor,  # structured generation
             )
         except ValueError:
             if not generation_config.do_sample:
@@ -847,6 +886,7 @@ class LlavaMetaForCausalLM(ABC):
                 media=media,
                 media_config=media_config,
                 generation_config=generation_config,
+                logits_processor=xgr_logits_processor,
             )
 
         # Decode the response
