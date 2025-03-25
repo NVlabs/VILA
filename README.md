@@ -137,7 +137,7 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 
 ## Training
 
-VILA training contains three steps, for specific hyperparameters, please check out the [scripts/v1_5](scripts/v1_5) folder:
+VILA training contains three steps, for specific hyperparameters, please check out the [scripts/NVILA-Lite](scripts/NVILA-Lite) folder:
 
 ### Step-1: Alignment
 
