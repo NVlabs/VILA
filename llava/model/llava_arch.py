@@ -73,7 +73,7 @@ class LlavaMetaModel(ABC):
         self.mm_projector = build_mm_projector(mm_projector_cfg, config)
         # NOTE(ligeng): for xgrammer init, <image> <vila/video> and <vila/sentinel>
         if isinstance(self.config, dict):
-            self.vocab_size = config.llm_cfg["vocab_size"] + NUM_EXTRA_TOKENS
+            self.vocab_size = config.llm.vocab_size + NUM_EXTRA_TOKENS
         else:
             self.vocab_size = self.tokenizer.vocab_size + NUM_EXTRA_TOKENS
             logging.info(
