@@ -30,8 +30,10 @@ from einops import rearrange
 from hydra.utils import instantiate
 from transformers import AutoConfig, GenerationConfig, LogitsProcessor
 from transformers.modeling_utils import ContextManagers, no_init_weights
+from llava.constants import MEDIA_TOKENS
 
 from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX, NUM_EXTRA_TOKENS
+from llava.conversation import Conversation
 from llava.mm_utils import process_image, process_images
 from llava.model.configuration_llava import LlavaConfig, ResponseFormat
 from llava.model.language_model.builder import build_llm_and_tokenizer
@@ -827,11 +829,12 @@ class LlavaMetaForCausalLM(ABC):
 
         # Extract media from the conversation
 
-        # TODO (extract and preprocess should be done together, as the preprocess of image and video can be different, i.e. when dynamic res is used)
-        media = extract_media(conversation, self.config)
 
         # Process media
         media_config = defaultdict(dict)
+
+        # TODO (extract and preprocess should be done together, as the preprocess of image and video can be different, i.e. when dynamic res is used)
+        media = extract_media(conversation, config=self.config)
         for name in media:
             if name == "image":
                 if len(media["image"]) == 1 and self.config.image_aspect_ratio in ["dynamic", "dynamic_s2"]:
@@ -853,13 +856,13 @@ class LlavaMetaForCausalLM(ABC):
                     images = process_images(media["image"], self.vision_tower.image_processor, self.config).half()
                 media[name] = [image for image in images]
             elif name == "video":
+
                 media[name] = [
-                    process_images(images, self.vision_tower.image_processor, self.config).half()
+                    process_images(images, self.vision_tower.image_processor, self.config, enable_dynamic_res=True).half().cuda()
                     for images in media[name]
                 ]
             else:
                 raise ValueError(f"Unsupported media type: {name}")
-
         # Tokenize the conversation
         input_ids = tokenize_conversation(conversation, self.tokenizer, add_generation_prompt=True).cuda().unsqueeze(0)
 
