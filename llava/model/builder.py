@@ -139,6 +139,8 @@ def load_pretrained_model(
     if is_mm_model(model_path):
         model.resize_token_embeddings(len(tokenizer))
         vision_tower = model.get_vision_tower()
+        if vision_tower is None:
+            raise ValueError("Vision tower failed to load!")
         vision_tower.to(device=device, dtype=torch.float16)
         # vision_tower.to(device=device, dtype=torch.bfloat16)
         mm_projector = model.get_mm_projector()

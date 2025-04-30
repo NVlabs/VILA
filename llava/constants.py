@@ -24,9 +24,8 @@ LOGDIR = "."
 
 # Model Constants
 IGNORE_INDEX = -100
-DEFAULT_IM_START_TOKEN = "<im_start>"
-DEFAULT_IM_END_TOKEN = "<im_end>"
-
+DEFAULT_IMAGE_TOKEN = "<image>"
+DEFAULT_VIDEO_TOKEN = "<vila/video>"
 
 SENTINEL_TOKEN = "<vila/sentinel>"
 
