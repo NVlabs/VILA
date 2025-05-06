@@ -1,5 +1,6 @@
 import argparse
 import base64
+import copy
 import json
 import os
 import re
@@ -13,16 +14,20 @@ from typing import List, Literal, Optional, Union, get_args
 import requests
 import torch
 import uvicorn
+import tempfile
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image as PILImage
 from PIL.Image import Image
 from pydantic import BaseModel
 from transformers.generation.streamers import TextIteratorStreamer
+from llava.utils.logging import logger
+from llava.media import Video
 
-from llava.constants import DEFAULT_IMAGE_TOKEN
+from llava import conversation
+from llava.constants import MEDIA_TOKENS
 from llava.conversation import SeparatorStyle, conv_templates
-from llava.mm_utils import KeywordsStoppingCriteria, get_model_name_from_path, process_images, tokenizer_image_token
+from llava.mm_utils import KeywordsStoppingCriteria, get_model_name_from_path, tokenizer_image_token
 from llava.model.builder import load_pretrained_model
 from llava.utils import disable_torch_init
 
@@ -32,25 +37,54 @@ class TextContent(BaseModel):
     text: str
 
 
-class ImageURL(BaseModel):
+class MediaURL(BaseModel):
     url: str
 
 
 class ImageContent(BaseModel):
     type: Literal["image_url"]
-    image_url: ImageURL
+    image_url: MediaURL
+
+class VideoContent(BaseModel):
+    type: Literal["video_url"]
+    video_url: MediaURL
+    frames: Optional[int] = 8
+    fps: Optional[int] = 2
 
 
 IMAGE_CONTENT_BASE64_REGEX = re.compile(r"^data:image/(png|jpe?g);base64,(.*)$")
+VIDEO_CONTENT_BASE64_REGEX = re.compile(r"^data:video/(mp4);base64,(.*)$")
 
+
+def load_video(video_url: str) -> str:
+    # download or parse video from base64
+    if video_url.startswith("http") or video_url.startswith("https"):
+        response = requests.get(video_url)
+        video = BytesIO(response.content)
+    else:
+        match_results = VIDEO_CONTENT_BASE64_REGEX.match(video_url)
+        if match_results is None:
+            raise ValueError(f"Invalid video url: {video_url[:64]}")
+        image_base64 = match_results.groups()[1]
+        video = BytesIO(base64.b64decode(image_base64))
+
+    temp_dir = tempfile.mkdtemp()
+    os.makedirs(temp_dir, exist_ok=True)
+
+    temp_fpath = os.path.join(temp_dir, f"{uuid.uuid5(uuid.NAMESPACE_DNS, video_url)}.mp4")
+    with open(temp_fpath, "wb") as f:
+        f.write(video.getbuffer())
+
+    return temp_fpath
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: Union[str, List[Union[TextContent, ImageContent]]]
+    content: Union[str, List[Union[TextContent, ImageContent, VideoContent]]]
 
 
 class ChatCompletionRequest(BaseModel):
     model: Literal[
+        "NVILA-15B",
         "VILA1.5-3B",
         "VILA1.5-3B-AWQ",
         "VILA1.5-3B-S2",
@@ -80,15 +114,23 @@ context_len = None
 
 def load_image(image_url: str) -> Image:
     if image_url.startswith("http") or image_url.startswith("https"):
+        print(f"[Server] Loading image from URL: {image_url}")
         response = requests.get(image_url)
         image = PILImage.open(BytesIO(response.content)).convert("RGB")
+        print("[Server] Image loaded from URL successfully.")
     else:
         match_results = IMAGE_CONTENT_BASE64_REGEX.match(image_url)
         if match_results is None:
-            raise ValueError(f"Invalid image url: {image_url}")
+            raise ValueError(f"Invalid image url format: {image_url}")
         image_base64 = match_results.groups()[1]
-        image = PILImage.open(BytesIO(base64.b64decode(image_base64))).convert("RGB")
+        try:
+            image = PILImage.open(BytesIO(base64.b64decode(image_base64))).convert("RGB")
+            print("[Server] Base64 image loaded successfully.")
+        except Exception as e:
+            print(f"[Server] Failed to decode base64 image: {e}")
+            raise e
     return image
+
 
 
 def get_literal_values(cls, field_name: str):
@@ -104,8 +146,10 @@ VILA_MODELS = get_literal_values(ChatCompletionRequest, "model")
 
 
 def normalize_image_tags(qs: str) -> str:
-    if DEFAULT_IMAGE_TOKEN not in qs:
-        print("No image was found in input messages. Continuing with text only prompt.")
+    if MEDIA_TOKENS["image"] not in qs:
+        logger.warning("No image was found in input messages.")
+    elif MEDIA_TOKENS["video"] not in qs:
+        logger.warning("No video was found in input messages.")
     return qs
 
 
@@ -134,35 +178,47 @@ async def chat_completions(request: ChatCompletionRequest):
                 f"The endpoint is configured to use the model {model_name}, "
                 f"but the request model is {request.model}"
             )
-        max_tokens = request.max_tokens
-        temperature = request.temperature
-        top_p = request.top_p
-        use_cache = request.use_cache
-        num_beams = request.num_beams
+
+        generation_config = copy.deepcopy(model.default_generation_config)
+
+        generation_config.max_new_tokens = request.max_tokens
+        generation_config.temperature = request.temperature
+        generation_config.top_p = request.top_p
+        generation_config.do_sample = request.temperature > 0
+        generation_config.num_beams = request.num_beams
+        generation_config.use_cache = request.use_cache
 
         messages = request.messages
         conv_mode = app.args.conv_mode
 
-        images = []
-
         conv = conv_templates[conv_mode].copy()
         user_role = conv.roles[0]
         assistant_role = conv.roles[1]
-
+        image = None
+        video = None
         for message in messages:
-            if message.role == "user":
-                prompt = ""
+            prompt = ""
 
+            if message.role == "user":
                 if isinstance(message.content, str):
-                    prompt += message.content
-                if isinstance(message.content, list):
+                    prompt+= message.content
+                elif isinstance(message.content, list):
                     for content in message.content:
                         if content.type == "text":
                             prompt += content.text
-                        if content.type == "image_url":
+                        elif content.type == "image_url":
                             image = load_image(content.image_url.url)
-                            images.append(image)
-                            prompt += DEFAULT_IMAGE_TOKEN
+                            prompt += MEDIA_TOKENS["image"]
+                        elif content.type == "video_url":
+                            video = load_video(content.video_url.url)
+                            logger.info(f"loading {content.frames} frames from {video}")
+                            model.config.num_video_frames = content.frames
+                            model.config.fps = content.fps
+                            video = Video(video)
+                            prompt += MEDIA_TOKENS["video"]
+                        else:
+                            raise NotImplementedError(f"Unsupported content type: {content.type}")
+
                 normalized_prompt = normalize_image_tags(prompt)
                 conv.append_message(user_role, normalized_prompt)
             if message.role == "assistant":
@@ -174,39 +230,26 @@ async def chat_completions(request: ChatCompletionRequest):
             conv.append_message(assistant_role, "")
 
         prompt_text = conv.get_prompt()
-        print("Prompt input: ", prompt_text)
+        logger.info(f"Prompt input: {prompt_text}")
 
-        # support generation with text only inputs
-        if len(images) == 0:
-            images_input = None
-        else:
-            images_tensor = process_images(images, image_processor, model.config).to(model.device, dtype=torch.float16)
-            images_input = [images_tensor]
 
         input_ids = tokenizer_image_token(prompt_text, tokenizer, return_tensors="pt").unsqueeze(0).to(model.device)
+
 
         stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
         keywords = [stop_str]
         stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
+        if image is not None:
+            prompt = [image, normalized_prompt]
+        elif video is not None:
+            prompt = [video, normalized_prompt]
+        else:
+            prompt = normalized_prompt
+
         with torch.inference_mode():
             if request.stream:
-                streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, timeout=20.0)
-                thread = Thread(
-                    target=model.generate,
-                    kwargs=dict(
-                        input_ids=input_ids,
-                        images=images_input,
-                        do_sample=True if temperature > 0 else False,
-                        temperature=temperature,
-                        top_p=top_p,
-                        max_new_tokens=max_tokens,
-                        streamer=streamer,
-                        use_cache=use_cache,
-                        stopping_criteria=[stopping_criteria],
-                    ),
-                )
-                thread.start()
+                streamer = model.generate_content(prompt, stream=True, generation_config = generation_config)
 
                 def chunk_generator():
                     prepend_space = False
@@ -225,7 +268,7 @@ async def chat_completions(request: ChatCompletionRequest):
                             prepend_space = False
                         if len(new_text):
                             chunk = {
-                                "id": chunk_id,
+                                "id": str(chunk_id),
                                 "object": "chat.completion.chunk",
                                 "created": time.time(),
                                 "model": request.model,
@@ -237,20 +280,12 @@ async def chat_completions(request: ChatCompletionRequest):
                 return StreamingResponse(chunk_generator())
 
             else:
-                output_ids = model.generate(
-                    input_ids,
-                    images=images_input,
-                    do_sample=True if temperature > 0 else False,
-                    temperature=temperature,
-                    top_p=top_p,
-                    num_beams=num_beams,
-                    max_new_tokens=max_tokens,
-                    use_cache=use_cache,
-                    stopping_criteria=[stopping_criteria],
-                )
 
-                outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
-                outputs = outputs.strip()
+                outputs = model.generate_content(prompt=prompt, generation_config=generation_config)
+                # Check if the response is None
+                if not outputs:
+                    raise ValueError("The model response is empty or malformed.")
+
                 if outputs.endswith(stop_str):
                     outputs = outputs[: -len(stop_str)]
                 outputs = outputs.strip()
@@ -264,6 +299,7 @@ async def chat_completions(request: ChatCompletionRequest):
                     "model": request.model,
                     "choices": [{"message": ChatMessage(role="assistant", content=resp_content)}],
                 }
+
     except Exception as e:
         return JSONResponse(
             status_code=500,

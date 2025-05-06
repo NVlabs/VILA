@@ -173,6 +173,7 @@ conv_templates = {
 
 
 CONVERSATION_MODE_MAPPING = {
+    "nvila15b": "vicuna_v1",
     "vila1.5-3b": "vicuna_v1",
     "vila1.5-8b": "llama_3",
     "vila1.5-13b": "vicuna_v1",
