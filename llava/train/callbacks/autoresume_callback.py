@@ -30,7 +30,7 @@ try:
     AutoResume.init()
     logger.info("Found AutoResume SDK!")
 except:
-    logger.warn("Did not find AutoResume SDK!")
+    logger.warning("Did not find AutoResume SDK!")
     AutoResume = None
 
 
@@ -55,7 +55,7 @@ class AutoResumeCallback(transformers.TrainerCallback):
 
             if should_preempt:
                 if state.is_local_process_zero:
-                    logger.warn(f"AutoResumeHook: Request resume...")
+                    logger.warning(f"AutoResumeHook: Request resume...")
                     if AutoResume is not None:
                         AutoResume.request_resume()
                 control.should_training_stop = True
