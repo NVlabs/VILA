@@ -3,6 +3,8 @@ import glob
 import os
 from typing import Any, Dict, List, Optional
 
+from huggingface_hub import hf_hub_download
+
 from llava.constants import DEFAULT_IMAGE_TOKEN
 from llava.data.base import BaseDataset
 from llava.media import Image, Video
@@ -11,10 +13,6 @@ from llava.utils import io, make_list
 __all__ = [
     "DummyDataset",
 ]
-
-import os
-
-from huggingface_hub import hf_hub_download
 
 
 def hf_download_data(
@@ -92,5 +90,3 @@ class DummyDataset(BaseDataset):
         # Add media to the beginning of the first message
         messages[0]["value"] = medias + [messages[0]["value"]]
         return messages
-
-

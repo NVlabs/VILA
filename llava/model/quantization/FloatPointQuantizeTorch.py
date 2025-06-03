@@ -76,5 +76,3 @@ def ZeroDynamic_quantize_torch(x, bit, stochastic):
 
     y = y.to(x)
     return y
-
-

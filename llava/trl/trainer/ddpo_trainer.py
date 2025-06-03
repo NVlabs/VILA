@@ -546,9 +546,11 @@ class DDPOTrainer(BaseTrainer):
                     self.accelerator.backward(loss)
                     if self.accelerator.sync_gradients:
                         self.accelerator.clip_grad_norm_(
-                            self.trainable_layers.parameters()
-                            if not isinstance(self.trainable_layers, list)
-                            else self.trainable_layers,
+                            (
+                                self.trainable_layers.parameters()
+                                if not isinstance(self.trainable_layers, list)
+                                else self.trainable_layers
+                            ),
                             self.config.train_max_grad_norm,
                         )
                     self.optimizer.step()
@@ -626,5 +628,3 @@ class DDPOTrainer(BaseTrainer):
     def _save_pretrained(self, save_directory):
         self.sd_pipeline.save_pretrained(save_directory)
         self.create_model_card(save_directory)
-
-

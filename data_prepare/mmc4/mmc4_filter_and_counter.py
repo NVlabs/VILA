@@ -56,5 +56,3 @@ for pkl in pkl_list:
 
     with open(os.path.join(output_path, pkl.replace(".pkl", ".count")), "w") as f:
         f.write(str(len(filtered_annotation)))
-
-

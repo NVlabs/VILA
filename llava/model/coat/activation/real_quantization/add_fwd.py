@@ -211,5 +211,3 @@ def fp8_add_Ifp_Ifp_Ofp_Og16(x1, x2, fp8type, QB):  # suppose x1 is full precisi
         s_y2 = s_y2.reshape(BS, -1, s_y2.shape[-1])
 
     return y1, (y2, s_y2)
-
-

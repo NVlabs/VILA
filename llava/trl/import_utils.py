@@ -105,5 +105,3 @@ def is_npu_available() -> bool:
     import torch_npu  # noqa: F401
 
     return hasattr(torch, "npu") and torch.npu.is_available()
-
-

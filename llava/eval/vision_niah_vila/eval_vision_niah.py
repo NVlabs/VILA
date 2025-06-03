@@ -279,7 +279,12 @@ def inference(args):
                 print("Context %d, depth %d already done." % (num_frames, round(depth * 100, -1)))
                 continue
             accuracies = []
-            for (question_embedding, needle_embedding, answer_embedding, answer_id,) in zip(
+            for (
+                question_embedding,
+                needle_embedding,
+                answer_embedding,
+                answer_id,
+            ) in zip(
                 question_embeding_list,
                 needle_embedding_list,
                 answer_embedding_list,
@@ -448,5 +453,3 @@ if __name__ == "__main__":
     args.add_argument("--plot_only", action="store_true")
 
     main(args.parse_args())
-
-

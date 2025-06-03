@@ -51,5 +51,3 @@ def prepare_zigzag_ring_attn_inputs(input_ids, position_ids, target_ids, rank, w
         "local_position_ids": local_position_ids,
         "local_target_ids": local_target_ids,
     }
-
-

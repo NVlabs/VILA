@@ -543,5 +543,3 @@ class MiCS_Optimizer(DeepSpeedZeroOptimizer_Stage3):
         partition group we can call the load_state_dict logic from ZeRO-3.
         """
         super().load_state_dict(state_dict_list, load_optimizer_states, load_from_fp32_weights, checkpoint_folder)
-
-

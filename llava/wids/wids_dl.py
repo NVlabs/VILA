@@ -154,5 +154,3 @@ def download_and_open(remote, local, mode="rb", handlers=default_cmds, verbose=F
             key = tuple(str(x) for x in [remote, local, mode, current_time])
             open_objects[key] = result
         return result
-
-

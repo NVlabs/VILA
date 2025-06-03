@@ -241,5 +241,3 @@ class VideoQADataset(BaseDataset):
         video = Video(instance["video_path"])
         messages[0]["value"] = [video, messages[0]["value"]]
         return messages
-
-

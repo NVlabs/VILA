@@ -57,5 +57,3 @@ while len(all_samples) >= per_shard_samples:
     print(f"Finished writing part-{counter:05d}.pkl!")
 
     counter += 1
-
-

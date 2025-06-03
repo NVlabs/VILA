@@ -78,5 +78,3 @@ def extract_local_position_ids(input_ids, image_positions, image_ids, sp_rank, s
         return input_ids[start_position_idx:]
     else:
         return input_ids[start_position_idx:end_position_idx]
-
-

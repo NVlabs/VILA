@@ -98,6 +98,8 @@ def prepare_config_for_training(
     config.tune_language_model = training_args.tune_language_model
     config.tune_vision_tower = training_args.tune_vision_tower
     config.tune_mm_projector = training_args.tune_mm_projector
+    # ps3 training configs
+    config.ps3_grad_checkpointing = training_args.ps3_grad_checkpointing
     # set data args
     # Get the image_aspect_ratio from the config if is defined there
     # (case of resuming from a checkpoint) or from the data_args
@@ -127,7 +129,11 @@ def prepare_config_for_training(
 
 def vision_resolution_elevation(model: PreTrainedModel, config: PretrainedConfig):
     vision_tower = model.get_vision_tower()
-    if vision_tower is not None and "radio" not in vision_tower.__class__.__name__.lower():
+    if (
+        vision_tower is not None
+        and "radio" not in vision_tower.__class__.__name__.lower()
+        and "ps3" not in vision_tower.__class__.__name__.lower()
+    ):
         vision_tower._maybe_resize_pos_embeds(
             model=vision_tower.vision_tower,
             image_processor=vision_tower.image_processor,
@@ -150,7 +156,10 @@ def calculate_loss_weight(labels, ignore_index=-100):
 
     padding_mask = shift_labels.eq(ignore_index)  # IGNORE_INDEX = -100 by default
     num_active_elements = padding_mask.numel() - padding_mask.long().sum()
-    global_active_sum = copy.deepcopy(num_active_elements)
+
+    # global_active_sum = copy.deepcopy(num_active_elements)
+    global_active_sum = num_active_elements.detach().clone()
+
     dist.all_reduce(global_active_sum)
     loss_weight = num_active_elements / global_active_sum * dist.get_world_size()
     return loss_weight
@@ -282,5 +291,3 @@ def sp_loss_rescale(shift_labels, loss):
 #     # dist.all_reduce(global_active_sum, group=get_ulysses_sp_pg())
 #     # loss_weight = num_active_elements / global_active_sum * PROCESS_GROUP_MANAGER.sp_degree
 #     # return loss_weight
-
-

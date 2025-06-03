@@ -103,5 +103,3 @@ class FlashAttention(nn.Module):
             )
 
         return output, None
-
-

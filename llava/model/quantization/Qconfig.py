@@ -52,5 +52,3 @@ class QuantizationConfig:
 
 
 qconfig = QuantizationConfig()
-
-

@@ -22,6 +22,7 @@ from transformers import AutoConfig, PretrainedConfig, PreTrainedModel
 
 from .clip_encoder import CLIPVisionTower, CLIPVisionTowerS2
 from .intern_encoder import InternVisionTower, InternVisionTowerS2
+from .ps3_encoder import PS3VisionTower
 from .radio_encoder import RADIOVisionTower
 from .siglip_encoder import SiglipVisionTower, SiglipVisionTowerDynamicS2, SiglipVisionTowerS2
 
@@ -41,7 +42,9 @@ def build_vision_tower(model_name_or_path: str, config: PretrainedConfig) -> Pre
     use_s2 = getattr(config, "s2", False)
     use_dynamic_s2 = getattr(config, "dynamic_s2", False)
 
-    if "intern" in vision_tower_name.lower():
+    if config.ps3:
+        vision_tower = PS3VisionTower(model_name_or_path, config)
+    elif "intern" in vision_tower_name.lower():
         drop_path_rate = getattr(config, "drop_path_rate", 0.0)
         if use_s2:
             vision_tower = InternVisionTowerS2(model_name_or_path, config=config, drop_path_rate=drop_path_rate)
@@ -67,6 +70,7 @@ def build_vision_tower(model_name_or_path: str, config: PretrainedConfig) -> Pre
     config.mm_hidden_size = (
         vision_tower.config.hidden_size if not (use_s2 or use_dynamic_s2) else vision_tower.hidden_size
     )
+    if config.ps3:
+        config.mm_low_res_token_num = vision_tower.vision_tower.vision_model.low_res_token_num
+        config.mm_scale_num = len(vision_tower.vision_tower.vision_model.s3_scales)
     return vision_tower
-
-

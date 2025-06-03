@@ -88,9 +88,7 @@ def drop_block_2d(
     total_size = W * H
     clipped_block_size = min(block_size, min(W, H))
     # seed_drop_rate, the gamma parameter
-    gamma = (
-        gamma_scale * drop_prob * total_size / clipped_block_size**2 / ((W - block_size + 1) * (H - block_size + 1))
-    )
+    gamma = gamma_scale * drop_prob * total_size / clipped_block_size**2 / ((W - block_size + 1) * (H - block_size + 1))
 
     # Forces the block to be inside the feature map.
     w_i, h_i = ndgrid(torch.arange(W, device=x.device), torch.arange(H, device=x.device))
@@ -140,9 +138,7 @@ def drop_block_fast_2d(
     B, C, H, W = x.shape
     total_size = W * H
     clipped_block_size = min(block_size, min(W, H))
-    gamma = (
-        gamma_scale * drop_prob * total_size / clipped_block_size**2 / ((W - block_size + 1) * (H - block_size + 1))
-    )
+    gamma = gamma_scale * drop_prob * total_size / clipped_block_size**2 / ((W - block_size + 1) * (H - block_size + 1))
 
     block_mask = torch.empty_like(x).bernoulli_(gamma)
     block_mask = F.max_pool2d(
@@ -541,5 +537,3 @@ class InternVisionModel(PreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
-
-

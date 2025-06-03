@@ -1,6 +1,8 @@
 import glob
 import os
+import tempfile
 from collections import defaultdict
+from io import BytesIO
 from typing import Any, Dict, List, Optional, Union
 
 import cv2
@@ -27,7 +29,14 @@ def _extract_image(image: Union[Image, PIL.Image.Image]) -> PIL.Image.Image:
     return image
 
 
-def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Image.Image]:
+def _load_video_bytesio(video_bytesio: BytesIO, *, num_frames: int) -> List[PIL.Image.Image]:
+    with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_video:
+        temp_video.write(video_bytesio.read())
+        temp_video_name = temp_video.name
+        return _load_video(temp_video_name, num_frames=num_frames)
+
+
+def _load_video(video_path: str, *, num_frames: int) -> List[PIL.Image.Image]:
     # Load video frames from a directory
     if os.path.isdir(video_path):
         frame_paths = sorted(glob.glob(os.path.join(video_path, "*")))
@@ -36,7 +45,6 @@ def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Ima
 
     # Load video frames from a video file
     vidcap = cv2.VideoCapture(video_path)
-    video_fps = vidcap.get(cv2.CAP_PROP_FPS)
 
     # Find the last frame as frame count might not be accurate
     frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -48,18 +56,8 @@ def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Ima
     else:
         raise ValueError(f"Video '{video_path}' has no frames.")
 
-    duration_sec = frame_count / video_fps if video_fps > 0 else 0
-
     # Extract frames uniformly
-    # If FPS is specified, use that to compute timestamps
-    if fps > 0:
-        timestamps = np.arange(0, duration_sec, 1.0 / fps)
-        timestamps = timestamps[:num_frames]  # Clamp
-        indices = [int(t * video_fps) for t in timestamps]
-        logger.info(f"timestamps used: {timestamps} with frame numbers {indices}")
-    else:
-        indices = np.round(np.linspace(0, frame_count - 1, num_frames)).astype(int)
-
+    indices = np.round(np.linspace(0, frame_count - 1, num_frames)).astype(int)
     frames = {}
     for index in indices:
         if index in frames:
@@ -76,8 +74,12 @@ def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Ima
 
 def _extract_video(video: Video, config: PretrainedConfig) -> List[PIL.Image.Image]:
     num_frames = config.num_video_frames
-    fps = getattr(config, "fps", 0.0)
-    frames = _load_video(video.path, num_frames=num_frames, fps=fps)
+    if getattr(config, "fps") != 0:
+        logger.warning("Extracting frames from video with specified FPS is not supported yet. Ignored.")
+    if isinstance(video.path, BytesIO):
+        frames = _load_video_bytesio(video.path, num_frames=num_frames)
+    else:
+        frames = _load_video(video.path, num_frames=num_frames)
     return frames
 
 
@@ -104,13 +106,11 @@ def extract_media(
                 text += MEDIA_TOKENS["image"]
             elif isinstance(part, Video):
                 if draft:
-                    media["image"].append(part)
+                    media["video"].append(part)
                 else:
-                    media["image"].extend(_extract_video(part, config))
-                text += MEDIA_TOKENS["image"] * config.num_video_frames
+                    media["video"].append(_extract_video(part, config))
+                text += MEDIA_TOKENS["video"]
             else:
                 raise ValueError(f"Unsupported prompt part type: {type(part)}")
         message["value"] = text
     return media
-
-

@@ -63,5 +63,3 @@ if __name__ == "__main__":
 
     # Call the function with parsed arguments
     download_and_convert_llama(convert_args, quantization_args)
-
-

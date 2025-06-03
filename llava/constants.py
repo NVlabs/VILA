@@ -18,20 +18,32 @@
 
 CONTROLLER_HEART_BEAT_EXPIRATION = 30
 WORKER_HEART_BEAT_INTERVAL = 15
+DEFAULT_IMAGE_TOKEN = "<image>"
 
 LOGDIR = "."
 
 # Model Constants
 IGNORE_INDEX = -100
-DEFAULT_IMAGE_TOKEN = "<image>"
-DEFAULT_VIDEO_TOKEN = "<vila/video>"
+DEFAULT_IM_START_TOKEN = "<im_start>"
+DEFAULT_IM_END_TOKEN = "<im_end>"
+
 
 SENTINEL_TOKEN = "<vila/sentinel>"
+
 MEDIA_TOKENS = {
     "image": "<image>",
     "video": "<vila/video>",
 }
-
-
 # <image> <vila/video> <vila/sentinel>
-NUM_EXTRA_TOKENS = 3
+# TODO(ligeng): need to discuss with Zhijian for the following tokens for different models.
+"""
+151643: AddedToken("<|endoftext|>", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151644: AddedToken("<|im_start|>", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151645: AddedToken("<|im_end|>", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151646: AddedToken("[BOS]", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151647: AddedToken("[PAD]", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151648: AddedToken("<vila/sentinel>", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151649: AddedToken("<image>", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+151650: AddedToken("<vila/video>", rstrip=False, lstrip=False, single_word=False, normalized=False, special=True),
+"""
+NUM_EXTRA_TOKENS = 8

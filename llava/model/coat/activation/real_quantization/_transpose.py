@@ -113,5 +113,3 @@ def fp8_transpose(x, transpose_output_2d=False):
         y = y.reshape(BS, -1, y.shape[-1])
 
     return y
-
-

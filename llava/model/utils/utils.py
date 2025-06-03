@@ -172,5 +172,3 @@ def auto_upgrade(config):
         else:
             print("Checkpoint upgrade aborted.")
             exit(1)
-
-

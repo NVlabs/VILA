@@ -194,5 +194,3 @@ def simple_calculate_score(results: dict):
             )
         )
     return scores
-
-

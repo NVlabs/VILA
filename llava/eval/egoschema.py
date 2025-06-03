@@ -28,6 +28,9 @@ def main() -> None:
     parser.add_argument("--output-dir", type=str, required=True)
     args = parser.parse_args()
 
+    # Remove num_vid_frames in the split variable
+    args.split = args.split.split("-")[0]
+
     # Set up distributed environment
     dist.init()
     devices = range(dist.local_rank(), torch.cuda.device_count(), dist.local_size())
@@ -107,5 +110,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

@@ -62,7 +62,9 @@ def main():
     parser.add_argument("--root-dir", type=str, default=None)
     parser.add_argument("--token", type=str, default=None)
 
-    parser.add_argument("-e", "--exclude", action="append", default=[r"checkpoint-[\d]*/.*", ".git/.*", "wandb/.*"])
+    parser.add_argument(
+        "-e", "--exclude", action="append", default=[r"checkpoint-[\d]*/.*", ".git/.*", ".cache/.*", "wandb/.*"]
+    )
     parser.add_argument("--fast-check", action="store_true")
     parser.add_argument("--sleep-on-error", action="store_true")
 
@@ -222,5 +224,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

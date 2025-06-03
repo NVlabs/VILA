@@ -373,5 +373,3 @@ class RADIOVisionTower(VisionTower):
         self.sample_count += 1
 
         return features
-
-

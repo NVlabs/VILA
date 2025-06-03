@@ -15,5 +15,3 @@ def __get_logger() -> Logger:
 
 
 logger = __get_logger()
-
-

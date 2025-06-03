@@ -42,12 +42,51 @@ def main():
     model.llm.config.min_tiles = 1
     model.llm.config.max_tiles = args.max_tiles
 
+    # get PS3 configs from environment variables
+    num_look_close = os.environ.get("NUM_LOOK_CLOSE", None)
+    num_token_look_close = os.environ.get("NUM_TOKEN_LOOK_CLOSE", None)
+    select_num_each_scale = os.environ.get("SELECT_NUM_EACH_SCALE", None)
+    look_close_mode = os.environ.get("LOOK_CLOSE_MODE", None)
+    smooth_selection_prob = os.environ.get("SMOOTH_SELECTION_PROB", None)
+
+    if num_look_close is not None:
+        print("Num look close:", num_look_close)
+        num_look_close = int(num_look_close)
+        model.num_look_close = num_look_close
+    if num_token_look_close is not None:
+        print("Num token look close:", num_token_look_close)
+        num_token_look_close = int(num_token_look_close)
+        model.num_token_look_close = num_token_look_close
+    if select_num_each_scale is not None:
+        print("Select num each scale:", select_num_each_scale)
+        select_num_each_scale = [int(x) for x in select_num_each_scale.split("+")]
+        model.get_vision_tower().vision_tower.vision_model.max_select_num_each_scale = select_num_each_scale
+    if look_close_mode is not None:
+        print("Look close mode:", look_close_mode)
+        model.look_close_mode = look_close_mode
+    if smooth_selection_prob is not None:
+        print("Smooth selection prob:", smooth_selection_prob)
+        if smooth_selection_prob.lower() == "true":
+            smooth_selection_prob = True
+        elif smooth_selection_prob.lower() == "false":
+            smooth_selection_prob = False
+        else:
+            raise ValueError(f"Invalid smooth selection prob: {smooth_selection_prob}")
+        model.smooth_selection_prob = smooth_selection_prob
+
+    # Adjust the max context length based on max_tiles and PS3 configs
+    context_length = model.tokenizer.model_max_length
     if args.max_tiles > 12:
-        context_length = int(args.max_tiles / 12.0 * 4096)
-        model.config.model_max_length = context_length
-        model.config.tokenizer_model_max_length = context_length
-        model.llm.config.model_max_length = context_length
-        model.llm.config.tokenizer_model_max_length = context_length
+        context_length = max(context_length, int(args.max_tiles / 12.0 * 4096))
+    if num_look_close is not None:
+        context_length = max(context_length, num_look_close * 2560 // 4 + 1024)
+    if num_token_look_close is not None:
+        context_length = max(context_length, num_token_look_close // 4 + 1024)
+    model.config.model_max_length = context_length
+    model.config.tokenizer_model_max_length = context_length
+    model.llm.config.model_max_length = context_length
+    model.llm.config.tokenizer_model_max_length = context_length
+    model.tokenizer.model_max_length = context_length
 
     # Set up generation config
     generation_config = model.default_generation_config
@@ -85,5 +124,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

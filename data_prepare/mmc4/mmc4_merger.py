@@ -46,5 +46,3 @@ for shard_name in tqdm(shard_names):
 
     with open(os.path.join(output_path, shard_name.replace(".jsonl", ".pkl")), "wb") as f:
         pickle.dump(data_list, f)
-
-

@@ -15,6 +15,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
+import json
+import os
+import os.path as osp
 import pathlib
 
 from iopath.common.file_io import g_pathmgr
@@ -37,3 +40,27 @@ class VILAEncodedVideo(EncodedVideo):
         return video_cls(video_file, pathlib.Path(file_path).name, decode_audio)
 
 
+class LabelingFactory(dict):
+    def __init__(self, name: str, output_dir: str = "thinking_data"):
+        self.name = name
+        self.output_dir = output_dir
+
+    def save(self):
+        print(f"\033[1mSaving {self.name} to {self.output_dir}/{self.name} \033[0m")
+        os.makedirs(osp.join(self.output_dir, self.name), exist_ok=True)
+        with open(osp.join(self.output_dir, self.name, f"data.json"), "w") as f:
+            json.dump(self, f, indent=2, ensure_ascii=False)
+
+        with open(osp.join(self.output_dir, self.name, f"instances.json"), "w") as f:
+            json.dump(list(self.values()), f, indent=2, ensure_ascii=False)
+
+    def load(self, data_path=None):
+        if data_path is None:
+            data_path = osp.join(self.output_dir, self.name)
+        if os.path.exists(osp.join(data_path, f"data.json")):
+            with open(osp.join(data_path, f"data.json")) as f:
+                data = json.load(f)
+                self.update(data)
+            print(f"Loaded {self.name} from {data_path}, total {len(list(data.items()))} instances")
+        else:
+            print(f"No data found for {self.name}, creating empty data")

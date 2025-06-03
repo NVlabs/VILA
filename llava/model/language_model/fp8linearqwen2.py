@@ -348,5 +348,3 @@ class FP8LinearQwen2ForCausalLM(FP8LinearQwen2PreTrainedModel):
 AutoConfig.register("fp8linear_qwen2", FP8LinearQwen2Config)
 AutoModel.register(FP8LinearQwen2Config, FP8LinearQwen2Model)
 AutoModelForCausalLM.register(FP8LinearQwen2Config, FP8LinearQwen2ForCausalLM)
-
-

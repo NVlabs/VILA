@@ -65,16 +65,21 @@ def generate_and_load_tar_meta(data_path, tar_path, cache_dir, overwrite=False):
         osp.realpath(tar_abspath).replace("/", "--") + ".wdsmeta.json",
     )
 
+    from llava.wids.wids import splitname as wids_splitname
+
     if not osp.exists(tar_abs_metapath) and not osp.exists(tar_real_metapath) or overwrite:
         # generate meta information for both abs and real file paths
         print(f"    Generating meta: {tar_abs_metapath}")
         try:
             tar = load_tarfile(tar_abspath)
-            uuids = list({osp.splitext(_)[0] for _ in tar.getnames()})
+            uuids = list({wids_splitname(_)[0] for _ in tar.getnames()})
         except tarfile.ReadError as e:
             print(f"Skipping {tar_abspath}")
             print(e)
             return None
+        # print(f"    {len(uuids)} samples in {tar_abspath}")
+        # print(uuids[:5])
+        # input()
         nsamples = len(uuids)
         # print(uuids)
         # print(nsamples)
@@ -115,7 +120,7 @@ def generate_wids_meta(tar_list, data_path, cache_dir, idx=0, total=0):
     meta_path_of_tar_rel = osp.join(osp.expanduser(data_path), "wids-meta.json")
     ####################################################################################
     meta = {
-        "name": "coyo-dev",
+        "name": "vila-dev",
         "__kind__": "VILA-WebDataset",
         "wids_version": 1,
         "shardlist": [],
@@ -136,7 +141,7 @@ def generate_wids_meta(tar_list, data_path, cache_dir, idx=0, total=0):
 
     ####################################################################################
     meta = {
-        "name": "coyo-dev",
+        "name": "vila-dev",
         "__kind__": "VILA-WebDataset",
         "wids_version": 1,
         "shardlist": [],
@@ -156,7 +161,7 @@ def generate_wids_meta(tar_list, data_path, cache_dir, idx=0, total=0):
         save_json(meta, meta_path_of_tar_rel)
 
 
-def prepare_wids_meta(data_path, cache_dir="~/datasets/vila-webds-meta-2", idx=0, total=0):
+def prepare_wids_meta(data_path, cache_dir="~/.cache/vila-webds-meta", idx=0, total=0):
     cache_dir = osp.expanduser(cache_dir)
     # TODO(ligeng): speedup the generation
     #   1. parallelize the meta file generation
@@ -211,7 +216,7 @@ class VILAWebDataset(torch.utils.data.Dataset):
             )
 
         assert osp.exists(self.meta_path), f"meta path not found in [{self.meta_path}] or [{_local_meta_path}]"
-        print(f"[VILA-forked-Webdataset] Loading meta infomation {self.meta_path}", flush=True)
+        print(f"[VILA-customized-Webdataset] Loading meta infomation {self.meta_path}", flush=True)
 
         # uuid = abs(hash(self.meta_path)) % (10 ** 8)
         import hashlib
@@ -334,5 +339,3 @@ if __name__ == "__main__":
 
             # if idx >= 5:
             #     break
-
-

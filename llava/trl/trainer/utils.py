@@ -292,6 +292,7 @@ class DPODataCollatorWithPadding:
         is_encoder_decoder (`Optional[bool]`, `optional`, defaults to `None`):
             Whether or not you model has an encoder_decoder architecture.
     """
+
     tokenizer: PreTrainedTokenizerBase
     pad_token_id: int = 0
     label_pad_token_id: int = -100
@@ -722,5 +723,3 @@ def get_peft_config(model_config: ModelConfig) -> "Optional[PeftConfig]":
     )
 
     return peft_config
-
-

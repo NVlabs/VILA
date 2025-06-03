@@ -103,6 +103,7 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         packing: bool = True,
+        force_packing: bool = False,
         seqlens_in_batch: Optional[torch.LongTensor] = None,
         dpo_forward: bool = False,
         **kwargs,
@@ -121,7 +122,7 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
         if inputs_embeds is None:
             inputs_embeds, labels, attention_mask = self._embed(input_ids, media, media_config, labels, attention_mask)
 
-        if packing and self.training and not dpo_forward:
+        if force_packing or (packing and self.training and not dpo_forward):
             if seqlens_in_batch is None:
                 seqlens_in_batch = torch.sum(attention_mask, dim=1)
             set_seqlens_in_batch(seqlens_in_batch)
@@ -160,5 +161,3 @@ class LlavaLlamaModel(LlavaMetaModel, LlavaMetaForCausalLM, PreTrainedModel):
 
 AutoConfig.register("llava_llama", LlavaLlamaConfig)
 AutoModel.register(LlavaLlamaConfig, LlavaLlamaModel)
-
-

@@ -201,5 +201,3 @@ def fp8_gelu_forward(x, s_x, QB, transpose_output_2d=False):
             qy_t = qy_t.reshape(BS, -1, qy.shape[-1])
 
     return qy, s_y_max, qy_t
-
-

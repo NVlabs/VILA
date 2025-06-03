@@ -114,5 +114,3 @@ class QLlavaLlamaModel(LlavaLlamaModel):
 
 AutoConfig.register("qllava_qllama", QLlavaLlamaConfig)
 AutoModel.register(QLlavaLlamaConfig, QLlavaLlamaModel)
-
-

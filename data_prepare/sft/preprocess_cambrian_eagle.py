@@ -75,5 +75,3 @@ base_path = "./cambrian"
 
 with open(os.path.join(base_path, "cambrian_adlr_train.json"), "w") as f:
     json.dump(cambrian_eagle, f)
-
-

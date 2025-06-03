@@ -282,6 +282,15 @@ def fp8_linear_backward(
 
 if __name__ == "__main__":
 
+    # Input = torch.load("/home/hxi/lustre_hxi/workdir/FP8_OLMo/debug_linear.pt")
+    # mul_x_t, mul_s, out_g, out_gs, out_g_t, weight2_t, weight2_s, qgroup_size = Input
+
+    # fc2_g, fc2_gs, weight2_grad = fp8_linear_backward(mul_x_t, mul_s, out_g, out_gs, out_g_t, weight2_t, weight2_s, qgroup_size, stochastic=True)
+
+    # # fc2_x = fp8_linear_forward(flash_x, flash_s, weight2, weight2_s, False, 16)
+    # import IPython
+    # IPython.embed()
+
     def validity_check(M, N, K):
         a = torch.randn((M, K), device="cuda", dtype=torch.float32)
         b = torch.randn((N, K), device="cuda", dtype=torch.bfloat16)
@@ -372,5 +381,3 @@ if __name__ == "__main__":
     # time_check(4096, 11008, 5380)
     # validity_check(2048, 1024, 4096)
     benchmark.run(show_plots=True, print_data=True)
-
-

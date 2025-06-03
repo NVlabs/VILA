@@ -30,6 +30,8 @@ def main() -> None:
     parser = ArgumentParser()
     parser.add_argument("--model-path", "-m", type=str, required=True)
     parser.add_argument("--model-name", type=str, default=None)
+    parser.add_argument("--lora-path", "-l", type=str, default=None)
+    parser.add_argument("--lora-enable", action="store_true")
     parser.add_argument("--conv-mode", "-c", type=str, required=True)
     parser.add_argument("--nproc-per-node", "-n", type=int, default=8)
     parser.add_argument("--tasks", "-t", type=lstr)
@@ -38,11 +40,13 @@ def main() -> None:
     parser.add_argument("--num_video_frames", "-nf", type=str, default="8/16/32/64/128/256/512")
     parser.add_argument("--max_tiles", "-mt", type=int, default=12)
     parser.add_argument("--output-dir", type=str, default=None)
+
     parser.add_argument("--report-to", "-r", choices=["wandb", None], default=None)
     args = parser.parse_args()
 
     # Get the model name and output directory
-    model_name = os.path.basename(os.path.normpath(args.model_path)).lower()
+    checkpoint_path = args.lora_path if args.lora_enable else args.model_path
+    model_name = os.path.basename(os.path.normpath(checkpoint_path)).lower()
     if args.model_name is not None:
         model_name = args.model_name
     output_dir = os.path.join("runs", "eval", model_name)
@@ -52,6 +56,7 @@ def main() -> None:
 
     # Filter tasks based on name and tags
     tasks = []
+
     for task, metainfo in TASKS.items():
         tags = set(metainfo.get("tags", []))
         if args.tasks is not None and task not in args.tasks:
@@ -77,37 +82,64 @@ def main() -> None:
             continue
 
         cmd = []
+        cmd += ["bash"]
         if task.startswith("lmms-"):
+            if args.lora_enable:
+                lmms_entry = "lmms_lora.sh"
+                model_entry = [
+                    args.lora_path,
+                    args.model_path,
+                ]
+            else:
+                lmms_entry = "lmms.sh"
+                model_entry = [
+                    args.model_path,
+                ]
+
             cmd += [
-                f"{EVAL_ROOT}/lmms.sh",
+                f"{EVAL_ROOT}/{lmms_entry}",
                 task.replace("lmms-", ""),
-                args.model_path,
+                *model_entry,
                 args.conv_mode,
                 str(args.max_tiles),
             ]
         else:
             _task, num_video_frame = task.split("-")[0], task.split("-")[1]
-            if "_" in task:
-                name, split = task.split("_")
-                cmd += [f"{EVAL_ROOT}/{name}.sh", split]
+            if args.lora_enable:
+                print(f"Lora Enabled {_task}")
+                eval_suffix = "_lora.sh"
+                model_entry = [
+                    args.lora_path,
+                    args.model_path,
+                ]
             else:
-                cmd += [f"{EVAL_ROOT}/{_task}.sh"]
-            cmd += [
-                args.model_path,
-                args.conv_mode,
-                num_video_frame,
-                str(args.max_tiles),
-            ]
+                print(f"Lora Disabled {_task}")
+                eval_suffix = ".sh"
+                model_entry = [
+                    args.model_path,
+                ]
+
+            if "_" in _task:
+                name, split = _task.split("_")
+                cmd += [f"{EVAL_ROOT}/{name}{eval_suffix}", split]
+            else:
+                cmd += [f"{EVAL_ROOT}/{_task}{eval_suffix}"]
+
+            cmd += [*model_entry, args.conv_mode, num_video_frame, str(args.max_tiles)]
 
         # Wrap the command with vila-run if not running on SLURM
         if os.environ.get("SLURM_JOB_ID"):
+            cmd = [f"OUTPUT_DIR={os.path.join(output_dir, task)}"] + cmd
             concurrency = 1
             final_cmd = cmd
         else:
             concurrency = 10
-            final_cmd = [f"vila-run -m eval -J {model_name}/{task}"] + cmd
+            final_cmd = [f"vila-run -m eval -J {model_name}/{task}"]
+            final_cmd = final_cmd + cmd
             if args.output_dir is not None:
-                final_cmd = [f"vila-run -m eval -J {model_name}/{task} --output-dir {args.output_dir}/{task}"] + cmd
+                final_cmd = [f"vila-run -m eval -J {model_name}/{task} --output-dir {args.output_dir}/{task}"]
+                final_cmd = final_cmd + cmd
+
         cmds[task] = " ".join(final_cmd)
 
     # Prepare the environment variables
@@ -158,15 +190,27 @@ def main() -> None:
         wandb_entity = os.environ.get("WANDB_ENTITY", None)
         wandb_name = os.environ.get("WANDB_NAME", model_name)
         logger.info(f"initiating wandb run for '{wandb_project}/{wandb_name}'")
-        wandb.init(
-            project=wandb_project,
-            entity=wandb_entity,
-            name=wandb_name,
-            config={
-                "model_path": args.model_path,
-                "conv_mode": args.conv_mode,
-            },
-        )
+        if args.lora_enable:
+            wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
+                name=wandb_name,
+                config={
+                    "model_path": args.model_path,
+                    "lora_path": args.lora_path,
+                    "conv_mode": args.conv_mode,
+                },
+            )
+        else:
+            wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
+                name=wandb_name,
+                config={
+                    "model_path": args.model_path,
+                    "conv_mode": args.conv_mode,
+                },
+            )
 
     # Collect the results and save them
     metrics = {}
@@ -192,11 +236,8 @@ def main() -> None:
 
     # Print the metrics in a tabular format
     logger.info("Results:\n" + tabulate(metrics.items(), tablefmt="simple_outline", headers=["Metric", "Value"]))
-
     return final_return_code
 
 
 if __name__ == "__main__":
     main()
-
-

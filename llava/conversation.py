@@ -173,7 +173,6 @@ conv_templates = {
 
 
 CONVERSATION_MODE_MAPPING = {
-    "nvila15b": "vicuna_v1",
     "vila1.5-3b": "vicuna_v1",
     "vila1.5-8b": "llama_3",
     "vila1.5-13b": "vicuna_v1",
@@ -190,5 +189,3 @@ def auto_set_conversation_mode(model_name_or_path: str) -> str:
             logger.info(f"Setting conversation mode to `{v}` based on model name/path `{model_name_or_path}`.")
             default_conversation = conv_templates[v]
             return
-
-

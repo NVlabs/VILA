@@ -16,7 +16,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" PyTorch LLaMA model."""
+"""PyTorch LLaMA model."""
 import math
 import os
 import time
@@ -304,5 +304,3 @@ class QLlamaForSequenceClassification(QLlamaPreTrainedModel):
 AutoConfig.register("qllama", QLlamaConfig)
 AutoModel.register(QLlamaConfig, QLlamaModel)
 AutoModelForCausalLM.register(QLlamaConfig, QLlamaForCausalLM)
-
-

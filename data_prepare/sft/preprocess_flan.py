@@ -70,5 +70,3 @@ for index in selected_indices:
 
 with open(os.path.join(save_path, "text_flan_1m.pkl"), "wb") as f:
     pickle.dump(filtered_samples, f)
-
-

@@ -740,9 +740,11 @@ class DPOTrainer(Trainer):
     @contextmanager
     def null_ref_context(self):
         """Context manager for handling null reference model (that is, peft adapter manipulation)."""
-        with self.accelerator.unwrap_model(
-            self.model
-        ).disable_adapter() if self.is_peft_model and not self.ref_adapter_name else nullcontext():
+        with (
+            self.accelerator.unwrap_model(self.model).disable_adapter()
+            if self.is_peft_model and not self.ref_adapter_name
+            else nullcontext()
+        ):
             if self.ref_adapter_name:
                 self.model.set_adapter(self.ref_adapter_name)
             yield
@@ -1050,11 +1052,17 @@ class DPOTrainer(Trainer):
             with torch.no_grad():
                 if self.ref_model is None:
                     with self.null_ref_context():
-                        (reference_chosen_logps, reference_rejected_logps,) = self.concatenated_forward(
+                        (
+                            reference_chosen_logps,
+                            reference_rejected_logps,
+                        ) = self.concatenated_forward(
                             self.model, batch
                         )[:2]
                 else:
-                    (reference_chosen_logps, reference_rejected_logps,) = self.concatenated_forward(
+                    (
+                        reference_chosen_logps,
+                        reference_rejected_logps,
+                    ) = self.concatenated_forward(
                         self.ref_model, batch
                     )[:2]
 
@@ -1307,5 +1315,3 @@ class DPOTrainer(Trainer):
         kwargs = trl_sanitze_kwargs_for_tagging(model=self.model, tag_names=self._tag_names, kwargs=kwargs)
 
         return super().push_to_hub(commit_message=commit_message, blocking=blocking, **kwargs)
-
-

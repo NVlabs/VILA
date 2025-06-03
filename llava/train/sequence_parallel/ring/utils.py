@@ -122,5 +122,3 @@ class RingComm:
             req.wait()
         self._reqs = None
         self._ops = []
-
-

@@ -38,5 +38,3 @@ Model response: The correct answer is (B) 8/11.
 
 Extracted answer: B
 """
-
-

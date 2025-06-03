@@ -116,6 +116,7 @@ class SFTTrainer(Trainer):
         dataset_kwargs: (`Optional[Dict]`, *optional*):
             Dict of Optional kwargs to pass when creating packed or non-packed datasets
     """
+
     _tag_names = ["trl", "sft"]
 
     def __init__(
@@ -510,5 +511,3 @@ class SFTTrainer(Trainer):
         hook_handle = embeddings.register_forward_hook(neftune_post_forward_hook)
         self.neftune_hook_handle = hook_handle
         return model
-
-

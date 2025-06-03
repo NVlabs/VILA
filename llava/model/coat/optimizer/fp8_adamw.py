@@ -507,5 +507,3 @@ def _single_tensor_Coatadamw(
                 step,
                 qgroup_size,
             )
-
-

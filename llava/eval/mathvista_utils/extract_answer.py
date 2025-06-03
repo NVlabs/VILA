@@ -79,5 +79,3 @@ def extract_answer(response, problem, quick_extract=False):
         print(f"Error in extracting answer for {pid}")
 
     return ""
-
-

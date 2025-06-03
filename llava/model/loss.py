@@ -41,10 +41,8 @@ def soft_cross_entropy(
     targets_indices = torch.zeros_like(outputs[indices])
     for k, target in enumerate(targets[indices]):
         dist = torch.exp(-((target - soft_tokens) ** 2) / (2 * std**2))
-        targets_indices[k][soft_tokens] = dist / dist.sum()
+        targets_indices[k][soft_tokens] = (dist / dist.sum()).to(dtype=targets_indices.dtype)
     loss += cross_entropy(outputs[indices], targets_indices, reduction="sum")
 
     # Return average loss
     return loss / targets.size(0)
-
-

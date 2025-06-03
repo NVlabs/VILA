@@ -2,11 +2,11 @@
 
 To train VILA, we used the following datasets:
 
-| Stage                   | Datasets                                                                         |
+| Stage | Datasets |
 | ----------------------- | -------------------------------------------------------------------------------- |
-| 1. Initialize projector | CC3M                                                                             |
-| 2. Pre-training         | MMC4-core, COYO-700M, ShreGPT4V_pretrain                                                      |
-| 3. SFT                  | LLaVA-Next mixture, VFLAN, WIT, GSM8K-ScRel-SFT, Sherlock, ScienceQA, Shot2story, Video_ChatGPT, Youcook2, Vatex, ShareGPT_Video |
+| 1. Initialize projector | CC3M |
+| 2. Pre-training | MMC4-core, COYO-700M, ShreGPT4V_pretrain |
+| 3. SFT | LLaVA-Next mixture, VFLAN, WIT, GSM8K-ScRel-SFT, Sherlock, ScienceQA, Shot2story, Video_ChatGPT, Youcook2, Vatex, ShareGPT_Video |
 
 ### LLaVa-CC3M-Pretrain
 

@@ -12,6 +12,7 @@ from .common import FP8_MAX_VALUE, SCALE_MIN_THRES
 """Output uses similar to the bias shape"""
 """The input can be 2D or 3D, but the calculation is performed in 2D"""
 
+
 # The kernel with 1 load operation and 4 store operation
 def get_configs_io_block():
     configs = []
@@ -230,5 +231,3 @@ if __name__ == "__main__":
     torch.set_printoptions(precision=8, linewidth=1600, sci_mode=False, edgeitems=3)
     validity_check(BS=4, SL=256, CDIM=512, QB=16, fp8type=torch.float8_e4m3fn)
     bench_load_store.run(save_path=f"result/time/multi_quantize_block_quantize/BLSZ=64", print_data=True)
-
-

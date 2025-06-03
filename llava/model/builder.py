@@ -20,7 +20,7 @@ import warnings
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, PretrainedConfig
 
-from llava.model import LlavaLlamaModel
+from llava.model import LlavaLlamaModel, LlavaTopDownLlamaModel
 from llava.model.utils import is_mm_model
 
 
@@ -112,7 +112,10 @@ def load_pretrained_model(
             config = AutoConfig.from_pretrained(model_path)
             config.resume_path = model_path
             prepare_config_for_eval(config, kwargs)
-            model = LlavaLlamaModel(config=config, low_cpu_mem_usage=True, **kwargs)
+            if "topdown" in config.model_type.lower():
+                model = LlavaTopDownLlamaModel(config=config, low_cpu_mem_usage=True, **kwargs)
+            else:
+                model = LlavaLlamaModel(config=config, low_cpu_mem_usage=True, **kwargs)
             tokenizer = model.tokenizer
     else:
         # Load language model
@@ -136,8 +139,6 @@ def load_pretrained_model(
     if is_mm_model(model_path):
         model.resize_token_embeddings(len(tokenizer))
         vision_tower = model.get_vision_tower()
-        if vision_tower is None:
-            raise ValueError("Vision tower failed to load!")
         vision_tower.to(device=device, dtype=torch.float16)
         # vision_tower.to(device=device, dtype=torch.bfloat16)
         mm_projector = model.get_mm_projector()
@@ -162,5 +163,3 @@ def prepare_config_for_eval(config: PretrainedConfig, kwargs: dict):
         raise ValueError(f"Invalid configuration! Cannot find vision_tower in config:\n{config}")
 
     config.model_dtype = kwargs.pop("torch_dtype").__str__()
-
-

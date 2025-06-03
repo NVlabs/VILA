@@ -107,5 +107,3 @@ def flatten_to_1d(tensor):
         return None
 
     return tensor.reshape(-1)
-
-

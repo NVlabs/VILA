@@ -18,6 +18,7 @@ import re
 
 import torch
 import torch.nn as nn
+from timm.models.layers import Mlp
 from transformers import AutoConfig, AutoModel, PretrainedConfig, PreTrainedModel
 
 
@@ -220,11 +221,36 @@ class MultimodalProjector(PreTrainedModel):
             else:
                 raise ValueError(f"Unknown projector type: {mm_projector_type}")
 
-    def forward(self, x, *args, **kwargs):
+        if getattr(config, "ps3", False):
+            if getattr(config, "look_close_mode", None) == "after_prompt":
+                if getattr(config, "top_down_prompt_head_type", "linear") == "linear":
+                    self.top_down_prompt_head = nn.Linear(config.hidden_size, config.mm_hidden_size)
+                elif getattr(config, "top_down_prompt_head_type", "linear") == "mlp":
+                    self.top_down_prompt_head = Mlp(
+                        in_features=config.hidden_size,
+                        hidden_features=config.mm_hidden_size * 2,
+                        out_features=config.mm_hidden_size,
+                        norm_layer=nn.LayerNorm,
+                    )
+                else:
+                    raise NotImplementedError
+
+                for n, p in self.top_down_prompt_head.named_parameters():
+                    if "norm" not in n:
+                        p.data.uniform_(-0.02, 0.02)
+
+            if getattr(config, "high_res_pos_embed", False):
+                self.high_res_pos_embed = nn.Parameter(torch.zeros(1, config.mm_low_res_token_num, config.hidden_size))
+                self.high_res_scale_embed = nn.ParameterList(
+                    [nn.Parameter(torch.zeros(1, 1, config.hidden_size)) for _ in range(config.mm_scale_num)]
+                )
+
+    def forward(self, x, forward_top_down_prompt_head=False, *args, **kwargs):
+        if forward_top_down_prompt_head:
+            return self.top_down_prompt_head(x)
+
         return self.layers(x)
 
 
 AutoConfig.register("v2l_projector", MultimodalProjectorConfig)
 AutoModel.register(MultimodalProjectorConfig, MultimodalProjector)
-
-

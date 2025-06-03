@@ -105,7 +105,7 @@ def tokenize_conversation(
         conversation.append(message)
 
     if no_system_prompt:
-        conversation = [{"role": "system", "content": None}] + conversation
+        conversation = [{"role": "system", "content": ""}] + conversation
 
     text = tokenizer.apply_chat_template(
         conversation,
@@ -181,5 +181,3 @@ def infer_stop_tokens(tokenizer: transformers.PreTrainedTokenizer) -> List[str]:
             stop_token = tokenizer.decode(template[k + 1])
             stop_tokens.add(stop_token)
     return list(stop_tokens)
-
-

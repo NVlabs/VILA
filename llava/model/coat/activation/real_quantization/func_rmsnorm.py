@@ -337,5 +337,3 @@ def fp8_rmsnorm_backward(x, s_x, g, w, v, QB, num_warps):
     _rms_norm_bwd_dwdb[grid](_dw, dw, min(GROUP_SIZE_M, M), N, BLOCK_SIZE_M=32, BLOCK_SIZE_N=128, num_ctas=1)  #  #
 
     return dx, dw
-
-

@@ -38,14 +38,42 @@ class BasicImageEncoder(BaseEncoder):
             features = torch.cat([features, end_token_embeds], dim=0)
         return features
 
-    def forward(self, images: List[torch.Tensor], config: Dict[str, Any]) -> List[torch.Tensor]:
+    def forward(
+        self,
+        images: List[torch.Tensor],
+        config: Dict[str, Any],
+        ps3=False,
+        image_num_each_sample=None,
+        top_down_prompts=None,
+        concat_low_high_res_features=False,
+        smooth_selection_prob=False,
+        num_look_close=None,
+        gt_selection_maps=None,
+        original_image_sizes=None,
+    ) -> List[torch.Tensor]:
         images = torch.stack(images, dim=0)
-        features = self.parent.encode_images(images, block_sizes=config.get("block_sizes"))
+
+        if ps3:
+            features, top_down_selection_maps, top_down_selection_probs = self.parent.encode_images_ps3(
+                images,
+                image_num_each_sample,
+                top_down_prompts,
+                concat_low_high_res_features,
+                smooth_selection_prob,
+                num_look_close,
+                gt_selection_maps,
+                original_image_sizes,
+            )
+        else:
+            features = self.parent.encode_images(images, block_sizes=config.get("block_sizes"))
+
         process_features = partial(
             self._process_features,
             start_token_embeds=self.embed_tokens(self.start_tokens),
             end_token_embeds=self.embed_tokens(self.end_tokens),
         )
-        return [process_features(f) for f in features]
 
-
+        if ps3:
+            return [process_features(f) for f in features], top_down_selection_maps, top_down_selection_probs
+        else:
+            return [process_features(f) for f in features]

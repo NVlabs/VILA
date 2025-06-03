@@ -33,5 +33,3 @@ with open(jsonl_path, "w") as jsonl_file:
             jsonl_file.write("\n")
 
 print("Processing complete.")
-
-

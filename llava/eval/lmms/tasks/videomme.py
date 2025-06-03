@@ -64,5 +64,3 @@ def videomme_doc_to_text_subtitle(doc: Dict[str, Any], num_frames: int) -> str:
     prompt += "\n".join(doc["options"]) + "\n"
     prompt += "The best answer is:"
     return prompt
-
-

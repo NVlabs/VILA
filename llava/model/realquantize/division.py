@@ -15,6 +15,7 @@ except:
 """Output uses full-precision/BF16"""
 """The input can be 2D or 3D, but the calculation is performed in 2D"""
 
+
 # The kernel with 1 load operation and 4 store operation
 def get_configs_io_block():
     configs = []
@@ -280,5 +281,3 @@ def validity_check(BS, SL, CDIM, QB, fp8type=torch.float8_e4m3fn):
     import IPython
 
     IPython.embed()
-
-

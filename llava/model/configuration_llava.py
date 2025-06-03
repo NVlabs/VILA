@@ -50,6 +50,18 @@ class LlavaConfig(PretrainedConfig):
         s2_resize_output_to_scale_idx=0,
         min_tiles: Optional[int] = 1,
         max_tiles: Optional[int] = 12,
+        video_max_tiles: Optional[int] = 1,
+        ### PS3 configs ###
+        ps3=False,
+        look_close_mode=None,
+        num_look_close=1,
+        num_token_look_close=None,
+        top_down_prompt_head_type="linear",
+        high_res_pos_embed=False,
+        ps3_dynamic_aspect_ratio=False,
+        mm_low_res_token_num=None,
+        mm_scale_num=None,
+        ### End of PS3 configs ###
         num_time_tokens=None,
         time_token_format=None,
         image_encoder: str = '{"_target_": "llava.model.encoders.BasicImageEncoder"}',
@@ -83,13 +95,21 @@ class LlavaConfig(PretrainedConfig):
         self.s2_resize_output_to_scale_idx = s2_resize_output_to_scale_idx
         self.min_tiles = min_tiles
         self.max_tiles = max_tiles
+        self.video_max_tiles = video_max_tiles
+        self.ps3 = ps3
+        self.look_close_mode = look_close_mode
+        self.num_look_close = num_look_close
+        self.num_token_look_close = num_token_look_close
+        self.top_down_prompt_head_type = top_down_prompt_head_type
+        self.high_res_pos_embed = high_res_pos_embed
+        self.ps3_dynamic_aspect_ratio = ps3_dynamic_aspect_ratio
+        self.mm_low_res_token_num = mm_low_res_token_num
+        self.mm_scale_num = mm_scale_num
         self.num_time_tokens = num_time_tokens
         self.time_token_format = time_token_format
 
         self.image_encoder = image_encoder
         self.video_encoder = video_encoder
-
-
 
 
 class JsonSchemaResponseFormat(BaseModel):

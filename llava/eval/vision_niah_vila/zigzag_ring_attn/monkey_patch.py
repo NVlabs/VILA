@@ -123,5 +123,3 @@ def apply_zigzag_ring_attn_monkey_patch_mistral():
         new_flash_attn_forward
     )
     transformers.models.mistral.modeling_mistral.MistralDecoderLayer.forward = new_decoder_forward
-
-

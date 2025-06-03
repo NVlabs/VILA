@@ -130,22 +130,49 @@ class VisionTower(nn.Module):
             torch.arange(embeddings.num_positions).expand((1, -1)).to(old_embeddings.weight.device)
         )
 
-    def forward(self, images):
-        if type(images) is list:
-            image_features = []
-            for image in images:
-                image_forward_out = self.vision_tower(
-                    image.to(device=self.device, dtype=self.dtype).unsqueeze(0),
-                    output_hidden_states=True,
-                )
-                image_feature = self.feature_select(image_forward_out).to(image.dtype)
-                image_features.append(image_feature)
-        else:
+    def forward(
+        self,
+        images,
+        top_down_prompts=None,
+        num_look_close=1,
+        num_token_look_close=None,
+        smooth_selection_prob=False,
+        gt_selection_maps=None,
+        only_select_first_n_scale=None,
+    ):
+        if "ps3" in self.vision_tower.config.model_type.lower():
             image_forward_outs = self.vision_tower(
                 images.to(device=self.device, dtype=self.dtype),
+                prompt=top_down_prompts,
                 output_hidden_states=True,
+                num_look_close=num_look_close,
+                num_token_look_close=num_token_look_close,
+                smooth_selection_prob=smooth_selection_prob,
+                gt_selection_maps=gt_selection_maps,
+                only_select_first_n_scale=only_select_first_n_scale,
             )
             image_features = self.feature_select(image_forward_outs).to(images.dtype)
+            selection_maps = image_forward_outs.selection_maps
+            selection_probs = image_forward_outs.selection_probs
+
+            return image_features, selection_maps, selection_probs
+
+        else:
+            if type(images) is list:
+                image_features = []
+                for image in images:
+                    image_forward_out = self.vision_tower(
+                        image.to(device=self.device, dtype=self.dtype).unsqueeze(0),
+                        output_hidden_states=True,
+                    )
+                    image_feature = self.feature_select(image_forward_out).to(image.dtype)
+                    image_features.append(image_feature)
+            else:
+                image_forward_outs = self.vision_tower(
+                    images.to(device=self.device, dtype=self.dtype),
+                    output_hidden_states=True,
+                )
+                image_features = self.feature_select(image_forward_outs).to(images.dtype)
 
         return image_features
 
@@ -247,5 +274,3 @@ class VisionTowerDynamicS2(VisionTower):
     @property
     def hidden_size(self):
         return self.config.hidden_size * len(self.scales)
-
-
