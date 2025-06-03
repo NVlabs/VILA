@@ -192,18 +192,26 @@ def smart_tokenizer_and_embedding_resize(
 
     Note: This is the unoptimized version that may make your embedding size not be divisible by 64.
     """
-    num_new_tokens = tokenizer.add_special_tokens(special_tokens_dict)
-    model.resize_token_embeddings(len(tokenizer))
+    input_embeddings_requires_grad = model.get_input_embeddings().weight.requires_grad
+    num_embeddings_original = model.get_input_embeddings().num_embeddings
+    tokenizer.add_special_tokens(special_tokens_dict)
+    token_size_new = len(tokenizer)
+    if token_size_new > num_embeddings_original or input_embeddings_requires_grad: 
+        model.resize_token_embeddings(len(tokenizer))
 
-    if num_new_tokens > 0:
+    added_embeddings = model.get_input_embeddings().num_embeddings - num_embeddings_original
+    if added_embeddings > 0:
         input_embeddings = model.get_input_embeddings().weight.data
         output_embeddings = model.get_output_embeddings().weight.data
 
-        input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-        output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+        input_embeddings_avg = input_embeddings[:-added_embeddings].mean(dim=0, keepdim=True)
+        output_embeddings_avg = output_embeddings[:-added_embeddings].mean(dim=0, keepdim=True)
 
-        input_embeddings[-num_new_tokens:] = input_embeddings_avg
-        output_embeddings[-num_new_tokens:] = output_embeddings_avg
+        input_embeddings[-added_embeddings:] = input_embeddings_avg
+        output_embeddings[-added_embeddings:] = output_embeddings_avg
+    
+    model.get_input_embeddings().requires_grad_(input_embeddings_requires_grad)
+
 
 
 def make_conv(prompt, answer):
@@ -575,16 +583,6 @@ def train():
         model.llm = prepare_model_for_kbit_training(
             model.llm, use_gradient_checkpointing=training_args.gradient_checkpointing
         )
-
-    if training_args.gradient_checkpointing:
-        if hasattr(model.llm, "enable_input_require_grads"):
-            model.llm.enable_input_require_grads()
-        else:
-
-            def make_inputs_require_grad(module, input, output):
-                output.requires_grad_(True)
-
-            model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
     if training_args.lora_enable:
         from peft import LoraConfig, PeftModel, get_peft_model
