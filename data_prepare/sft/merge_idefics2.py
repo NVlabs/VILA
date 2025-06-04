@@ -47,5 +47,3 @@ with open(os.path.join(save_path, "idefics2_sft_train.jsonl"), "w") as f:
     for item in all_data:
         json.dump(item, f)
         f.write("\n")
-
-

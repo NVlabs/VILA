@@ -47,12 +47,10 @@ with open(jsonl_path, "w") as jsonl_file:
 
         for k, v in annotation_data.items():
             convs = [
-                (
-                    [
-                        {"from": "human", "value": "<image>\n" + question_dict[k]},
-                        {"from": "gpt", "value": v},
-                    ]
-                )
+                [
+                    {"from": "human", "value": "<image>\n" + question_dict[k]},
+                    {"from": "gpt", "value": v},
+                ]
             ]
 
             outputs = {
@@ -66,5 +64,3 @@ with open(jsonl_path, "w") as jsonl_file:
 
 # Now 'images' contains all the opened images from the image_root directory
 print(f"Successfully opened {len(images)} out of {len(image_files)} images.")
-
-

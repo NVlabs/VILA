@@ -98,7 +98,18 @@ def splitname(fname):
     """Returns the basename and extension of a filename"""
     assert "." in fname, "Filename must have an extension"
     # basename, extension = re.match(r"^((?:.*/)?.*?)(\..*)$", fname).groups()
-    basename, extension = os.path.splitext(fname)
+    # wids v1:
+    # basename, extension = os.path.splitext(fname)
+
+    # wids v2:
+    #  fit MMDU multi-turn multi-image format
+    segs = fname.split("/")
+    folder = "/".join(segs[:-1])
+    fname = segs[-1]
+    segs = fname.split(".")
+    base, ext = segs[0], ".".join(segs[1:])
+    basename = f"{folder}/{base}"
+    extension = f".{ext}"
     return basename, extension
 
 
@@ -823,5 +834,3 @@ class DistributedLocalSampler(DistributedSampler):
         # print("[SamplerIndices: ]", indices)
         assert len(indices) == self.num_samples
         return iter(indices)
-
-

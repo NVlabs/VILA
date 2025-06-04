@@ -27,6 +27,7 @@ import transformers
 from torch.utils.data import Dataset
 from transformers import AutoConfig, AutoTokenizer, HfArgumentParser, LlamaForCausalLM, set_seed
 from transformers.modeling_utils import unwrap_model
+from transformers.utils import logging
 
 import llava.data.dataset as dataset
 import llava.data.datasets_mixture as datasets_mixture
@@ -34,12 +35,12 @@ from llava import conversation as conversation_lib
 from llava.constants import IGNORE_INDEX
 from llava.data import make_supervised_data_module
 from llava.mm_utils import process_image
-from llava.model import LlavaLlamaConfig, LlavaLlamaModel
+from llava.model import LlavaLlamaConfig, LlavaLlamaModel, LlavaTopDownLlamaConfig, LlavaTopDownLlamaModel
 from llava.model.language_model.fp8linearqwen2 import Qwen2ForCausalLM  # We need this line to register AutoConfig
 from llava.model.language_model.qllava_qllama import QLlavaLlamaModel, quantize_args_to_model_class
 from llava.train.args import DataArguments, ModelArguments, TrainingArguments
 from llava.train.callbacks.autoresume_callback import AutoResumeCallback
-from llava.train.llava_trainer import LLaVATrainer, VILADPOTrainer
+from llava.train.llava_trainer import LLaVATopDownTrainer, LLaVATrainer, VILADPOTrainer
 from llava.train.sequence_parallel import set_pg_manager
 from llava.train.slurm_utils import TimeoutTerminateCallback
 from llava.train.utils import (
@@ -52,6 +53,7 @@ from llava.train.utils import (
 from llava.trl.trainer.utils import DPODataCollatorWithPadding
 
 local_rank = None
+logger = logging.get_logger(__name__)
 
 if "WANDB_PROJECT" not in os.environ:
     # Default to WANDB project "VILA".
@@ -281,7 +283,6 @@ class DPODataCollator(DPODataCollatorWithPadding):
             the sum of the length of the prompt and the chosen/rejected response, with
             label_pad_token_id  for the prompt tokens.
         """
-        # import pdb; pdb.set_trace()
         batch = {}
 
         chosen_sources = make_conv(prompt, chosen)
@@ -427,6 +428,45 @@ def train():
     else:
         training_args.run_name = training_args.output_dir.split("/")[-1]
 
+    if training_args.use_one_logger:
+        try:
+            from one_logger_utils.huggingface import TimeEventCallback, hook_trainer_cls
+        except ImportError as e:
+            logging.warning(
+                f"""one_logger_utils is not installed. Please install it to use one_logger.
+                            Please install via `pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
+`"""
+            )
+            raise e
+        batch_size = os.environ.get("GLOBAL_TRAIN_BATCH_SIZE", 16)
+        app_tag = f"{training_args.run_name}_{training_args.model_max_length}_{batch_size}"
+        one_logger_callback_config = {
+            "enable_for_current_rank": os.environ.get("RANK") == "0",
+            "one_logger_async": True,
+            "one_logger_project": "vila",
+            "log_every_n_train_iterations": 10,
+            "app_tag_run_version": "0.0.0",
+            "summary_data_schema_version": "1.0.0",
+            "app_run_type": "training",
+            "app_tag": app_tag,
+            "app_tag_run_name": training_args.run_name,
+            "world_size": os.environ.get("WORLD_SIZE", -1),
+            "global_batch_size": batch_size,
+            "batch_size": batch_size,
+            "train_iterations_target": int(data_args.num_video_frames / batch_size),
+            "train_samples_target": data_args.num_video_frames,
+            "is_train_iterations_enabled": True,
+            "is_baseline_run": False,
+            "is_test_iterations_enabled": False,
+            "is_validation_iterations_enabled": False,
+            "is_save_checkpoint_enabled": True,
+            "is_log_throughput_enabled": False,
+            "micro_batch_size": os.environ.get("PER_DEVICE_TRAIN_BATCH_SIZE", 16),
+            "seq_length": training_args.model_max_length,
+            "save_checkpoint_strategy": "sync",
+        }
+        one_logger_callback_utils = TimeEventCallback(one_logger_callback_config)
+
     local_rank = training_args.local_rank
     compute_dtype = torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32)
 
@@ -469,8 +509,14 @@ def train():
     if resume_path:
         resume_from_checkpoint = True
         if training_args.lora_enable:
-            model_cls = LlavaLlamaModel
-            config = LlavaLlamaConfig.from_pretrained(model_args.model_name_or_path, resume=resume_from_checkpoint)
+            if model_args.ps3:
+                model_cls = LlavaTopDownLlamaModel
+                config = LlavaTopDownLlamaConfig.from_pretrained(
+                    model_args.model_name_or_path, resume=resume_from_checkpoint
+                )
+            else:
+                model_cls = LlavaLlamaModel
+                config = LlavaLlamaConfig.from_pretrained(model_args.model_name_or_path, resume=resume_from_checkpoint)
             config.resume_path = model_args.model_name_or_path
         else:
             config = AutoConfig.from_pretrained(resume_path, trust_remote_code=True)
@@ -480,24 +526,34 @@ def train():
         ## first time training
         resume_from_checkpoint = False
         ## llm and default multimodal model
-        if (
-            model_args.quantize_model in quantize_args_to_model_class.keys()
-        ):  # However, qmem should not used currently becuase I haven't merge the memory reduction version into VILA
-            from llava.model.language_model.qllava_qllama import QLlavaLlamaModel
-
-            model_cls = QLlavaLlamaModel
+        if model_args.ps3:
+            model_cls = LlavaTopDownLlamaModel
+            config = LlavaTopDownLlamaConfig.from_pretrained(
+                model_args.model_name_or_path, resume=resume_from_checkpoint
+            )
         else:
-            assert (
-                model_args.quantize_model == "false"
-            ), f"{model_args.quantize_model} for model_args.quantize_model is not supported"
-            model_cls = LlavaLlamaModel
-        config = LlavaLlamaConfig.from_pretrained(model_args.model_name_or_path, resume=resume_from_checkpoint)
+            if (
+                model_args.quantize_model in quantize_args_to_model_class.keys()
+            ):  # However, qmem should not used currently becuase I haven't merge the memory reduction version into VILA
+                from llava.model.language_model.qllava_qllama import QLlavaLlamaModel
+
+                model_cls = QLlavaLlamaModel
+            else:
+                assert (
+                    model_args.quantize_model == "false"
+                ), f"{model_args.quantize_model} for model_args.quantize_model is not supported"
+                model_cls = LlavaLlamaModel
+            config = LlavaLlamaConfig.from_pretrained(model_args.model_name_or_path, resume=resume_from_checkpoint)
 
         if getattr(config, "resume_path", None) is not None:
             config.resume_path = model_args.model_name_or_path
 
     ## extra configurations
     prepare_config_for_training(config, model_args, training_args, data_args)
+
+    if training_args.use_one_logger:
+        one_logger_callback_utils.on_model_init_start()
+
     if model_args.quantize_model in quantize_args_to_model_class.keys():
         model = model_cls(
             config=config,
@@ -515,6 +571,9 @@ def train():
             cache_dir=training_args.cache_dir,
             **bnb_model_from_pretrained_args,
         )
+
+    if training_args.use_one_logger:
+        one_logger_callback_utils.on_model_init_end()
 
     if not resume_path or training_args.lora_enable:
         if model_args.mlp_path is not None:
@@ -653,13 +712,29 @@ def train():
             model.get_mm_projector().requires_grad_(training_args.tune_mm_projector)
             mprint(f"vision tower {training_args.tune_vision_tower}")
             mprint(f"mm projector {training_args.tune_mm_projector}")
+            if model_args.ps3 and model_args.look_close_mode == "after_prompt":
+                model.get_top_down_prompt_head().requires_grad_(training_args.tune_top_down_selection)
+                for n, p in model.get_vision_tower().vision_tower.named_parameters():
+                    if any(
+                        [
+                            nn in n
+                            for nn in model.get_vision_tower().vision_tower.vision_model.token_selection_param_names()
+                        ]
+                    ):
+                        p.requires_grad_(training_args.tune_top_down_selection)
+                mprint(f"top down selection {training_args.tune_top_down_selection}")
             trainable_params, all_param = get_nb_trainable_parameters(model)
             print(
                 f"trainable params: {trainable_params:,d} || all params: {all_param:,d} || trainable%: {100 * trainable_params / all_param:.4f}"
             )
 
         if not any(
-            [training_args.tune_language_model, training_args.tune_vision_tower, training_args.tune_mm_projector]
+            [
+                training_args.tune_language_model,
+                training_args.tune_vision_tower,
+                training_args.tune_mm_projector,
+                training_args.tune_top_down_selection,
+            ]
         ):
             logging.warning("You are not tuning any part of the model. Please check if this is intended.")
 
@@ -752,6 +827,7 @@ def train():
     callbacks = [AutoResumeCallback(), TimeoutTerminateCallback()]
 
     if training_args.dpo:
+        assert not model_args.ps3, "DPO is not supported for PS3"
         ref_model = model_cls(
             config=config,
             attn_implementation="flash_attention_2",
@@ -784,13 +860,22 @@ def train():
             data_collator=data_collator,
         )
     else:
-        trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, callbacks=callbacks, **data_module)
+        trainer_cls = LLaVATrainer if not model_args.ps3 else LLaVATopDownTrainer
+        if training_args.use_one_logger:
+            newLLaVATrainer = hook_trainer_cls(trainer_cls, one_logger_callback_utils=one_logger_callback_utils)
+            trainer = newLLaVATrainer(
+                model=model, tokenizer=tokenizer, args=training_args, callbacks=callbacks, **data_module
+            )
+        else:
+            trainer = trainer_cls(
+                model=model, tokenizer=tokenizer, args=training_args, callbacks=callbacks, **data_module
+            )
 
         if model_args.quantize_model in ["fp8Activation_qwen2", "fp8ActivationResidual_qwen2"]:
             from llava.model.coat.fp8_trainer import CoatFP8Trainer
 
             trainer._inner_training_loop = CoatFP8Trainer._inner_training_loop.__get__(
-                trainer, LLaVATrainer
+                trainer, trainer_cls
             )  # GPT told me to do this
 
     print(
@@ -816,6 +901,8 @@ def train():
     model.config.resume_path = model.config._name_or_path = training_args.output_dir
     ## TODO handle lora for new initialization
     if training_args.lora_enable:
+        if training_args.use_one_logger:
+            one_logger_callback_utils.on_save_checkpoint_start(global_step=trainer.state.global_step)
         state_dict = get_peft_state_maybe_zero_3(model.named_parameters(), training_args.lora_bias)
         non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(model.named_parameters())
         if training_args.local_rank == 0 or training_args.local_rank == -1:
@@ -825,11 +912,15 @@ def train():
                 non_lora_state_dict,
                 os.path.join(training_args.output_dir, "non_lora_trainables.bin"),
             )
+        if training_args.use_one_logger:
+            one_logger_callback_utils.on_save_checkpoint_success(global_step=trainer.state.global_step)
+            one_logger_callback_utils.on_save_checkpoint_end(global_step=trainer.state.global_step)
     else:
         safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
+
+    if training_args.use_one_logger:
+        one_logger_callback_utils.on_app_end()
 
 
 if __name__ == "__main__":
     train()
-
-

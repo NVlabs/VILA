@@ -144,5 +144,3 @@ def fp8_quantize_pertensor(x, QB, fp8type, stochastic=False):
         s_y = s_y.reshape(BS, -1, s_y.shape[-1])
 
     return y, s_y_max, s_y
-
-

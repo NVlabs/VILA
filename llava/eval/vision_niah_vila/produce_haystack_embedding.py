@@ -104,5 +104,3 @@ if __name__ == "__main__":
     parser.add_argument("--add_newline_token", action="store_true")
     args = parser.parse_args()
     main(args)
-
-

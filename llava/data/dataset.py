@@ -17,6 +17,7 @@ import base64
 import copy
 import io
 import json
+import math
 import os
 import os.path as osp
 import random
@@ -38,8 +39,10 @@ from llava import conversation as conversation_lib
 from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
 from llava.data.collate import DataCollator
 from llava.mm_utils import (
+    delete_extra_img_tokens,
     dynamic_process_images_and_prompt,
     dynamic_s2_process_images_and_prompt,
+    get_original_image_size,
     opencv_extract_frames,
     process_image,
     tokenizer_image_token,
@@ -193,6 +196,13 @@ class LazySupervisedDataset(Dataset):
             image_file = self.list_data_dict[i]["image"]
 
             sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
+
+            # If we want to control the maximum number of images in each instance for efficient training
+            if self.data_args.max_num_images is not None:
+                sources = delete_extra_img_tokens(sources, self.data_args.max_num_images)
+                if isinstance(image_file, list):
+                    image_file = image_file[: min(self.data_args.max_num_images, len(image_file))]
+
             if isinstance(image_file, list):
                 if enable_dynamic_res_s2:
                     processed_images, block_sizes = dynamic_s2_process_images_and_prompt(
@@ -206,6 +216,7 @@ class LazySupervisedDataset(Dataset):
                     processed_images = torch.stack(
                         [process_image(img, self.data_args, self.image_folder) for img in image_file]
                     )
+                original_image_sizes = [get_original_image_size(img, self.image_folder) for img in image_file]
             else:
                 if enable_dynamic_res_s2:
                     processed_images, block_sizes = dynamic_s2_process_images_and_prompt(
@@ -219,6 +230,7 @@ class LazySupervisedDataset(Dataset):
                     processed_images = process_image(
                         image_file, self.data_args, self.image_folder, enable_dynamic_res=enable_dynamic_res
                     )
+                original_image_sizes = [get_original_image_size(image_file, self.image_folder)]
 
         elif "images" in sources[0]:
             sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
@@ -226,6 +238,13 @@ class LazySupervisedDataset(Dataset):
                 image_file["path"] if isinstance(image_file, dict) else image_file
                 for image_file in self.list_data_dict[i]["images"]
             ]
+
+            # If we want to control the maximum number of images in each instance for efficient training
+            if self.data_args.max_num_images is not None:
+                sources = delete_extra_img_tokens(sources, self.data_args.max_num_images)
+                if isinstance(image_file, list):
+                    image_file = image_file[: min(self.data_args.max_num_images, len(image_file))]
+
             if enable_dynamic_res_s2:
                 processed_images, block_sizes = dynamic_s2_process_images_and_prompt(
                     image_files, sources[0][0]["value"], self.data_args, self.image_folder
@@ -242,6 +261,8 @@ class LazySupervisedDataset(Dataset):
                     image = process_image(image_file, self.data_args, self.image_folder)
                     all_images.append(image)
                 processed_images = torch.stack(all_images)
+            original_image_sizes = [get_original_image_size(img, self.image_folder) for img in image_file]
+
         elif ("video" in sources[0]) or ("video_id" in sources[0]):
             # num_video_frames = self.data_args.num_video_frames
             if "video_path" in sources[0]:
@@ -268,7 +289,24 @@ class LazySupervisedDataset(Dataset):
                 video_path, num_video_frames, loader_fps, self.data_args, fps=fps, frame_count=frame_count
             )
 
-            image_tensor = torch.stack([process_image(image, self.data_args, None) for image in images])
+            if enable_dynamic_res_s2 and self.data_args.video_max_tiles > 1:
+                image_tensor, block_sizes = dynamic_s2_process_images_and_prompt(
+                    images,
+                    sources[0]["conversations"][0]["value"],
+                    self.data_args,
+                    self.image_folder,
+                    max_tiles=self.data_args.video_max_tiles,
+                )
+            elif enable_dynamic_res and self.data_args.video_max_tiles > 1:
+                image_tensor, sources[0]["conversations"][0]["value"] = dynamic_process_images_and_prompt(
+                    images,
+                    sources[0]["conversations"][0]["value"],
+                    self.data_args,
+                    self.image_folder,
+                    max_tiles=self.data_args.video_max_tiles,
+                )
+            else:
+                image_tensor = torch.stack([process_image(image, self.data_args, None) for image in images])
 
             if "captions" in sources[0]:
                 question = "Elaborate on the visual and narrative elements of the video in detail."
@@ -286,7 +324,7 @@ class LazySupervisedDataset(Dataset):
 
             if frames_loaded == 0:
                 answer = "Empty video."
-            num_frames_loaded_successfully = len(images)
+            num_frames_loaded_successfully = len(image_tensor)
 
             question = question.replace("<image>\n", "").replace("\n<image>", "").replace("<image>", "")
             question = question.replace("<video>\n", "").replace("\n<video>", "").replace("<video>", "")
@@ -320,10 +358,12 @@ class LazySupervisedDataset(Dataset):
                 data_dict["image"] = processed_images
             else:
                 data_dict["image"] = processed_images.unsqueeze(0)
+            data_dict["original_image_sizes"] = original_image_sizes
             if enable_dynamic_res_s2:
                 data_dict["block_sizes"] = block_sizes
         elif "images" in self.list_data_dict[i]:
             data_dict["image"] = processed_images
+            data_dict["original_image_sizes"] = original_image_sizes
             if enable_dynamic_res_s2:
                 data_dict["block_sizes"] = block_sizes
         elif ("video" in self.list_data_dict[i]) or ("video_id" in self.list_data_dict[i]):
@@ -337,6 +377,176 @@ class LazySupervisedDataset(Dataset):
             # data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
             # vila way
             data_dict["image"] = None
+        return data_dict
+
+
+class LazyQAGroundingDataset(Dataset):
+    """Dataset for QA Grounding."""
+
+    def __init__(
+        self,
+        data_path: str,
+        image_folder: str,
+        tokenizer: transformers.PreTrainedTokenizer,
+        data_args: DataArguments,
+        global_batch_size: int = None,
+    ):
+        super().__init__()
+
+        with open(data_path) as fp:
+            list_data_dict = json.load(fp)
+
+        # rank0_print("Formatting inputs...Skip in lazy mode")
+        print("Formatting inputs...Skip in lazy mode")
+        self.tokenizer = tokenizer
+        self.list_data_dict = list_data_dict
+        self.data_args = data_args
+        self.image_folder = image_folder
+
+        if global_batch_size is not None:
+            residual = global_batch_size - len(self.list_data_dict) % global_batch_size
+            if residual != global_batch_size:
+                if global_batch_size // len(self.list_data_dict) >= 2:
+                    self.list_data_dict = self.list_data_dict * (global_batch_size // len(self.list_data_dict))
+                    residual = global_batch_size - len(self.list_data_dict) % global_batch_size
+                selected_elements = random.sample(range(len(self.list_data_dict)), residual)
+                additional_instance = [self.list_data_dict[i] for i in selected_elements]
+                self.list_data_dict.extend(additional_instance)
+
+    def __len__(self):
+        return len(self.list_data_dict)
+
+    @property
+    def lengths(self):
+        length_list = []
+        for sample in self.list_data_dict:
+            img_tokens = 128 if "image" in sample else 0
+            length_list.append(sum(len(conv["value"].split()) for conv in sample["conversations"]) + img_tokens)
+        return length_list
+
+    @property
+    def modality_lengths(self):
+        length_list = []
+        for sample in self.list_data_dict:
+            cur_len = sum(len(conv["value"].split()) for conv in sample["conversations"])
+            cur_len = cur_len if "image" in sample else -cur_len
+            length_list.append(cur_len)
+        return length_list
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        sources = self.list_data_dict[i]
+        if isinstance(i, int):
+            sources = [sources]
+        assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
+        assert "image" in sources[0]
+
+        image_file = self.list_data_dict[i]["image"]
+        box = self.list_data_dict[i]["box"]
+        image, box = process_image(image_file, self.data_args, self.image_folder, box=box)
+        original_image_sizes = [get_original_image_size(image_file, self.image_folder)]
+        sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
+
+        # data_dict = preprocess(sources, self.tokenizer, has_image=("image" in self.list_data_dict[i]))
+        data_dict = preprocess(
+            sources,
+            self.tokenizer,
+            has_image=True,
+        )
+        if isinstance(i, int):
+            data_dict = dict(input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0])
+
+        # image exist in the data
+        data_dict["image"] = image.unsqueeze(0)
+        data_dict["original_image_sizes"] = original_image_sizes
+
+        # process box into ground-truth selection map
+        gt_selection_map = torch.zeros(image.shape[-2:], dtype=image.dtype, device=image.device)
+        gt_selection_map[math.floor(box[1]) : math.ceil(box[3]) + 1, math.floor(box[0]) : math.ceil(box[2]) + 1] = 1
+        data_dict["gt_selection_map"] = gt_selection_map
+
+        # set labels to all ignore because we don't want to train next token prediction on this data
+        data_dict["labels"][:] = IGNORE_INDEX
+
+        return data_dict
+
+
+class LazyHighResQADataset(Dataset):
+    """Dataset for QA Grounding."""
+
+    def __init__(
+        self,
+        data_path: str,
+        image_folder: str,
+        tokenizer: transformers.PreTrainedTokenizer,
+        data_args: DataArguments,
+        training_args: TrainingArguments,
+    ):
+        super().__init__()
+        try:
+            with open(data_path) as fp:
+                list_data_dict = json.load(fp)
+        except:
+            with open(data_path) as fp:
+                list_data_dict = [json.loads(q) for q in fp]
+
+        # rank0_print("Formatting inputs...Skip in lazy mode")
+        print("Formatting inputs...Skip in lazy mode")
+        self.tokenizer = tokenizer
+        self.list_data_dict = list_data_dict
+        self.data_args = data_args
+        self.image_folder = image_folder
+
+    def __len__(self):
+        return len(self.list_data_dict)
+
+    @property
+    def lengths(self):
+        length_list = []
+        for sample in self.list_data_dict:
+            img_tokens = 128 if "image" in sample else 0
+            length_list.append(sum(len(conv["value"].split()) for conv in sample["conversations"]) + img_tokens)
+        return length_list
+
+    @property
+    def modality_lengths(self):
+        length_list = []
+        for sample in self.list_data_dict:
+            cur_len = sum(len(conv["value"].split()) for conv in sample["conversations"])
+            cur_len = cur_len if "image" in sample else -cur_len
+            length_list.append(cur_len)
+        return length_list
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        sources = self.list_data_dict[i]
+        if isinstance(i, int):
+            sources = [sources]
+        assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
+        assert "image" in sources[0]
+
+        image_file = self.list_data_dict[i]["image"]
+        box = self.list_data_dict[i]["box"]
+        image, box = process_image(image_file, self.data_args, self.image_folder, box=box)
+        original_image_sizes = [get_original_image_size(image_file, self.image_folder)]
+        sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
+
+        # data_dict = preprocess(sources, self.tokenizer, has_image=("image" in self.list_data_dict[i]))
+        data_dict = preprocess(
+            sources,
+            self.tokenizer,
+            has_image=True,
+        )
+        if isinstance(i, int):
+            data_dict = dict(input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0])
+
+        # image exist in the data
+        data_dict["image"] = image.unsqueeze(0)
+        data_dict["original_image_sizes"] = original_image_sizes
+
+        # process box into ground-truth selection map
+        gt_selection_map = torch.zeros(image.shape[-2:], dtype=image.dtype, device=image.device)
+        gt_selection_map[math.floor(box[1]) : math.ceil(box[3]) + 1, math.floor(box[0]) : math.ceil(box[2]) + 1] = 1
+        data_dict["gt_selection_map"] = gt_selection_map
+
         return data_dict
 
 
@@ -457,6 +667,8 @@ class LazyMMC4Dataset(Dataset):
 
         # constrain max num 6 images
         max_num_images = 6
+        if self.data_args.max_num_images is not None:
+            max_num_images = min(max_num_images, self.data_args.max_num_images)
         if len(images) > max_num_images:
             images = images[:max_num_images]
             sentence_ixs = sentence_ixs[:max_num_images]
@@ -478,6 +690,7 @@ class LazyMMC4Dataset(Dataset):
         text = f"{text}{self.tokenizer.eos_token}"  # add eos token
 
         if len(images) > 0:
+            original_image_sizes = [get_original_image_size(image, self.image_folder) for image in images]
             if self.data_args.image_aspect_ratio == "dynamic_s2":
                 images, block_sizes = dynamic_s2_process_images_and_prompt(
                     images, text, self.data_args, self.image_folder
@@ -515,6 +728,7 @@ class LazyMMC4Dataset(Dataset):
 
         if self.data_args.image_aspect_ratio != "dynamic_s2":
             images = images[:n_im_patch]
+            original_image_sizes = original_image_sizes[:n_im_patch]
             assert len(images) == n_im_patch, print(text, input_ids)
         assert len(input_ids.shape) == 1, "Unexpected shape of 'input_ids' from MMC4."
         input_ids = (
@@ -546,7 +760,7 @@ class LazyMMC4Dataset(Dataset):
         # targets[targets == IMAGE_TOKEN_INDEX] = IGNORE_INDEX
         # print(input_ids.shape)
 
-        data_dict = dict(input_ids=input_ids, labels=targets, image=images)
+        data_dict = dict(input_ids=input_ids, labels=targets, image=images, original_image_sizes=original_image_sizes)
         if self.data_args.image_aspect_ratio == "dynamic_s2":
             data_dict["block_sizes"] = block_sizes
 
@@ -674,6 +888,7 @@ class LazyCoyoDataset(Dataset):
             image_list.append(image)
 
         image_list = torch.stack([process_image(image, self.data_args, self.image_folder) for image in image_list])
+        original_image_sizes = [get_original_image_size(image, self.image_folder) for image in image_list]
 
         if CONCAT_SAMPLES:
             # into <image>cap<eos><image>cap<eos>...
@@ -708,7 +923,7 @@ class LazyCoyoDataset(Dataset):
         for i in range(len(targets)):
             targets[i][targets[i] == self.tokenizer.pad_token_id] = IGNORE_INDEX
 
-        return dict(input_ids=input_ids, labels=targets, image=image_list)
+        return dict(input_ids=input_ids, labels=targets, image=image_list, original_image_sizes=original_image_sizes)
 
 
 class LazyWDSDataset(Dataset):
@@ -1265,16 +1480,35 @@ class DataCollatorForSupervisedDatasetSeqParallel:
     This class is originally implemented by the LLaVA team and
     modified by Haotian Tang."""
 
-    tokenizer: transformers.PreTrainedTokenizer
-    data_args: DataArguments
-    training_args: TrainingArguments
-    sp_degree: int
-    sp_rank: int
-    ring_degree: int
-    ring_type: str
+    def __init__(
+        self,
+        tokenizer: transformers.PreTrainedTokenizer,
+        data_args: DataArguments,
+        training_args: TrainingArguments,
+        sp_degree: int,
+        sp_rank: int,
+        ring_degree: int,
+        ring_type: str,
+    ):
+        self.tokenizer = tokenizer
+        self.data_args = data_args
+        self.training_args = training_args
+        self.sp_degree = sp_degree
+        self.sp_rank = sp_rank
+        self.ring_degree = ring_degree
+        self.ring_type = ring_type
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         input_ids, labels, images = [], [], []
+        image_token_id = self.tokenizer.media_token_ids["image"]
+        video_token_id = self.tokenizer.media_token_ids["video"]
+
+        pool_size = 1
+        try:
+            pool_size = self.data_args.pool_size
+        except:
+            pass
+
         for instance in instances:
             if not isinstance(instance["input_ids"], list):
                 input_ids.append(instance["input_ids"])
@@ -1286,7 +1520,29 @@ class DataCollatorForSupervisedDatasetSeqParallel:
                 labels += instance["labels"]
             # Note (kentang-mit@: we do not directly push tensors to
             # images, but list of tensors.
-            if instance["image"] is not None:
+
+            if "video" in instance:
+                instance["image"] = torch.cat(instance["video"])
+                num_images = instance["image"].shape[0] // (pool_size * self.sp_degree) * pool_size * self.sp_degree
+                instance["image"] = instance["image"][:num_images]
+                video_id_pos = torch.where(input_ids[-1] == video_token_id)[0][0]
+                replace_ids = torch.Tensor(
+                    ([image_token_id] + self.tokenizer.encode("\n")) * num_images,
+                    device=input_ids[-1].device,
+                )
+                input_ids[-1] = torch.cat(
+                    [input_ids[-1][:video_id_pos], replace_ids, input_ids[-1][video_id_pos + 1 :]]
+                ).to(input_ids[-1].dtype)
+                labels[-1] = torch.cat(
+                    [
+                        labels[-1][:video_id_pos],
+                        torch.Tensor([IGNORE_INDEX] * num_images * 2),
+                        labels[-1][video_id_pos + 1 :],
+                    ]
+                ).to(labels[-1].dtype)
+                instance.pop("video")
+
+            if "image" in instance:
                 cur_image = instance["image"]
                 assert len(cur_image.shape) == 4
                 # n_images, 3, size, size
@@ -1304,7 +1560,6 @@ class DataCollatorForSupervisedDatasetSeqParallel:
         # kentang-mit@: we need to make sure these two lists have
         # the same length. We will use input_ids to filter out images corresponding
         # to truncated <image> tokens later.
-        image_token_id = self.tokenizer.media_token_ids["image"]
 
         max_num_images = max([len(_images) for _images in images])
         for _images, _input_ids in zip(images, input_ids):
@@ -1314,7 +1569,7 @@ class DataCollatorForSupervisedDatasetSeqParallel:
                 Expect to have {len(_images)} images but only found {(_input_ids == image_token_id).sum().item()} images in tokens. \
                 Error input_ids: {_input_ids} {self.tokenizer.decode([x if x != -200 else 200 for x in _input_ids])}"
 
-        NUM_TOKENS_PER_IMAGE = self.data_args.num_image_tokens
+        NUM_TOKENS_PER_IMAGE = self.data_args.num_image_tokens // pool_size
         if hasattr(self.data_args.image_processor, "crop_size"):
             crop_size = self.data_args.image_processor.crop_size
         else:
@@ -1406,7 +1661,7 @@ class DataCollatorForSupervisedDatasetSeqParallel:
                     else:
                         raise ValueError(f"Invalid ring_type: {self.ring_type}")
 
-                if num_incoming_tokens > max_seq_length:
+                if False:  # num_incoming_tokens > max_seq_length:
                     print(
                         f"Warning: Skipping one packed sample with {num_incoming_tokens} tokens,\
                         please consider increase max seq len {max_seq_length}."
@@ -1523,7 +1778,9 @@ class DataCollatorForSupervisedDatasetSeqParallel:
         position_ids = torch.nn.utils.rnn.pad_sequence(position_ids, batch_first=True, padding_value=-1)
 
         if batch_images:
-            flat_batch_images = torch.concat(batch_images, dim=0)
+            flat_batch_images = batch_images
+            # batch_images = [torch.unbind(images) for images in batch_images]
+            # flat_batch_images = [item for sublist in batch_images for item in sublist]
         else:
             flat_batch_images = None
         batch = dict(
@@ -1532,10 +1789,10 @@ class DataCollatorForSupervisedDatasetSeqParallel:
             # notice that we inject attention mask here
             attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
             seqlens_in_batch=seqlens_in_batch,
-            images=flat_batch_images,
+            media={"video": flat_batch_images},
+            media_config={"video": {}},
             position_ids=position_ids,
         )
-
         return batch
 
 
@@ -1576,5 +1833,3 @@ def make_supervised_data_module(
         train_dataset=train_dataset,
         data_collator=data_collator,
     )
-
-

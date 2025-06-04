@@ -1471,5 +1471,3 @@ def make_state_dict_compatible(state_dict: dict[str, torch.Tensor]):
 AutoConfig.register("fp8_llama", CoatLlamaConfig)
 AutoModel.register(CoatLlamaConfig, CoatLlamaModel)
 AutoModelForCausalLM.register(CoatLlamaConfig, CoatLlamaForCausalLM)
-
-

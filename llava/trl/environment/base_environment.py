@@ -470,5 +470,3 @@ class TextEnvironment:
                 outputs.append(output[:generated_tokens])
         self.tokenizer.padding_side = padding_side_default
         return outputs
-
-

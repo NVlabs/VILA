@@ -272,5 +272,3 @@ class RewardTrainer(Trainer):
         labels = self._prepare_inputs(labels)
 
         return loss, logits, labels
-
-

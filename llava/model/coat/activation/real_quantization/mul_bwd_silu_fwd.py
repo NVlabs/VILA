@@ -329,5 +329,3 @@ def fp8_mul_backward_silu_forward(
             s_y2 = s_y2.reshape(BS, -1, s_y2.shape[-1])
 
         return y1, (qy2, s_y2_max, qy2_t)
-
-

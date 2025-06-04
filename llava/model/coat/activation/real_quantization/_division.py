@@ -204,5 +204,3 @@ def fp8_division(x, QB, fp8type, s_y=None, stochastic=False):
         y = y.reshape(BS, -1, y.shape[-1])
 
     return y, s_y  # y_t is expected to be 2D tensor
-
-

@@ -349,5 +349,3 @@ if __name__ == "__main__":
     #     world_size = dist.get_world_size()
 
     main(rank, world_size)
-
-

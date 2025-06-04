@@ -18,12 +18,15 @@
 
 import base64
 import os
+import re
 import tempfile
 from io import BytesIO
 
 import numpy as np
 import torch
+import torchvision.transforms.v2 as v2
 from PIL import Image
+from torchvision import tv_tensors
 from transformers import StoppingCriteria
 
 from llava.constants import DEFAULT_IMAGE_TOKEN
@@ -437,7 +440,7 @@ def dynamic_s2_process_images_and_prompt(images, prompt, data_args, image_folder
 
 
 def process_image(
-    image_file, data_args, image_folder, enable_dynamic_res=False, enable_dynamic_s2=False, max_tiles=None
+    image_file, data_args, image_folder, enable_dynamic_res=False, enable_dynamic_s2=False, max_tiles=None, box=None
 ):
     processor = data_args.image_processor
     if isinstance(image_file, str):
@@ -449,6 +452,11 @@ def process_image(
         # image is stored in bytearray
         image = image_file
     image = image.convert("RGB")
+
+    if box is not None:
+        W, H = image.size
+        box = tv_tensors.BoundingBoxes(box, format="XYXY", canvas_size=(H, W))
+
     if hasattr(data_args.image_processor, "crop_size"):
         # CLIP vision tower
         crop_size = data_args.image_processor.crop_size
@@ -474,8 +482,13 @@ def process_image(
         return torch.stack(images)
 
     if data_args.image_aspect_ratio == "resize":
-        image = image.resize((crop_size["width"], crop_size["height"]))
+        if box is not None:
+            resize = v2.Resize((crop_size["height"], crop_size["width"]))
+            image, box = resize(image, box)
+        else:
+            image = image.resize((crop_size["width"], crop_size["height"]))
     if data_args.image_aspect_ratio == "pad":
+        assert box is None, "Box is not supported for pad aspect ratio"
 
         def expand2square(pil_img, background_color):
             width, height = pil_img.size
@@ -498,13 +511,23 @@ def process_image(
         # For Radio, default is central crop
         # For Siglip, default is resize
         # For InternVIT, default is resize
-        image = processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
-    return image
+        if box is not None:
+            image, box = processor.preprocess((image, box), return_tensors="pt")["pixel_values"][0]
+        else:
+            image = processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
+
+    if box is not None:
+        return image, box.squeeze(0)
+    else:
+        return image
 
 
-def process_images(images, image_processor, model_cfg, enable_dynamic_res=False):
+def process_images(images, image_processor, model_cfg, enable_dynamic_res=False, max_tiles=None):
     model_cfg.image_processor = image_processor
-    new_images = [process_image(image, model_cfg, None, enable_dynamic_res=enable_dynamic_res) for image in images]
+    new_images = [
+        process_image(image, model_cfg, None, enable_dynamic_res=enable_dynamic_res, max_tiles=max_tiles)
+        for image in images
+    ]
 
     if all(x.shape == new_images[0].shape for x in new_images):
         if len(new_images[0].shape) == 4:
@@ -516,6 +539,36 @@ def process_images(images, image_processor, model_cfg, enable_dynamic_res=False)
     else:
         raise ValueError("The shape of images in new_images is different!")
     return new_images
+
+
+def get_original_image_size(image_file, image_folder=None):
+    if isinstance(image_file, str):
+        if image_folder is not None:
+            image = Image.open(os.path.join(image_folder, image_file)).convert("RGB")
+        else:
+            image = Image.open(image_file).convert("RGB")
+    else:
+        # image is stored in bytearray
+        image = image_file
+    image = image.convert("RGB")
+    return (image.size[1], image.size[0])
+
+
+def delete_extra_img_tokens(sources, max_num_images):
+    cnt = 0
+    for i in range(len(sources)):
+        for j in range(len(sources[i])):
+            if cnt >= max_num_images:
+                sources[i][j]["value"] = sources[i][j]["value"].replace(DEFAULT_IMAGE_TOKEN, "")
+            else:
+                img_token_pos = list(re.finditer(DEFAULT_IMAGE_TOKEN, sources[i][j]["value"]))
+                cnt += len(img_token_pos)
+                if cnt > max_num_images:
+                    start_delete_pos = img_token_pos[-(cnt - max_num_images)].start()
+                    sources[i][j]["value"] = sources[i][j]["value"][:start_delete_pos] + sources[i][j]["value"][
+                        start_delete_pos:
+                    ].replace(DEFAULT_IMAGE_TOKEN, "")
+    return sources
 
 
 def tokenizer_image_token(prompt, tokenizer, return_tensors=None):
@@ -567,5 +620,3 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         for i in range(output_ids.shape[0]):
             outputs.append(self.call_for_batch(output_ids[i].unsqueeze(0), scores))
         return all(outputs)
-
-

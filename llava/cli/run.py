@@ -29,12 +29,12 @@ def run_inside_slurm_node():
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job-name", "-J", type=str, required=True)
+    parser.add_argument("--job-name", "-J", type=str, default="eai-test")
     parser.add_argument("--nodes", "-N", type=int, default=1)
     parser.add_argument("--gpus-per-node", type=int, default=8)
     parser.add_argument("--mode", "-m", type=str, default="train")
     parser.add_argument("--time", "-t", type=str, default="4:00:00")
-    parser.add_argument("--timedelta", type=int, default=5)
+    parser.add_argument("--timedelta", type=int, default=10)
     parser.add_argument("--output-dir", type=str)
     parser.add_argument("--max-retry", type=int, default=-1)
     # -1: indicates none, for train jobs, it will be set 3 and otherwise 1
@@ -60,7 +60,7 @@ def main() -> None:
     # Calculate the timeout
     time = datetime.datetime.strptime(args.time, "%H:%M:%S")
     if time < datetime.datetime.strptime("0:01:00", "%H:%M:%S"):
-        raise ValueError("Time must be at least 1 minutes")
+        raise ValueError("Job time must be at least 1 minutes")
     timeout = time - datetime.timedelta(minutes=args.timedelta)
     timeout = timeout.hour * 60 + timeout.minute
     timeout = f"{timeout}m"
@@ -72,6 +72,7 @@ def main() -> None:
 
     if run_inside_slurm_node():
         full_cmd = " ".join(args.cmd)
+        args.max_retry = 0
     else:
         # Get SLURM account and partition
         if "VILA_SLURM_ACCOUNT" not in os.environ or "VILA_SLURM_PARTITION" not in os.environ:
@@ -91,10 +92,8 @@ def main() -> None:
             cmd += ["--mail-type", "BEGIN,END,FAIL"]
             cmd += ["--mail-user", args.email]
 
-        if not args.pty:
-            # Redirect output to files if not pty / interactive
-            cmd += ["--output", f"{output_dir}/slurm/%J.out"]
-            cmd += ["--error", f"{output_dir}/slurm/%J.err"]
+        # if not args.pty:
+        #     pass
         cmd += ["--nodes", str(args.nodes)]
         if supports_gpus_per_node() and args.gpus_per_node > 0:
             # eos slurm does not support gpus-per-node option
@@ -103,12 +102,18 @@ def main() -> None:
             cmd += ["--dependency", "singleton"]
         cmd += ["--time", args.time]
         cmd += ["--exclusive"]
-        cmd += ["timeout", timeout]
+
+        if args.pty:
+            cmd += ["--pty"]
+        else:
+            # Redirect output to files if not pty / interactive
+            cmd += ["--output", f"{output_dir}/slurm/%J.out"]
+            cmd += ["--error", f"{output_dir}/slurm/%J.err"]
+            cmd += ["timeout", timeout]
         cmd += args.cmd
         full_cmd = " ".join(cmd)
     print(colored(full_cmd, attrs=["bold"]))
 
-    # Run the job and resume if it times out
     fail_times = 0
     while True:
         returncode = subprocess.run(full_cmd, env=env, shell=True).returncode
@@ -132,5 +137,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

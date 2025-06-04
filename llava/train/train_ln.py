@@ -31,13 +31,7 @@ from transformers.modeling_utils import unwrap_model
 import llava.data.dataset as dataset
 import llava.data.datasets_mixture as datasets_mixture
 from llava import conversation as conversation_lib
-from llava.constants import (
-    DEFAULT_IM_END_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-)
+from llava.constants import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN, IGNORE_INDEX
 from llava.data import make_supervised_data_module
 from llava.mm_utils import process_image
 from llava.model import LlavaLlamaConfig, LlavaLlamaModel
@@ -863,5 +857,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-
-

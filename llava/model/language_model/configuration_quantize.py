@@ -69,5 +69,3 @@ class QuantizationConfig:
 #         self.col_blocksize = col_blocksize
 #         self.qchoice = qchoice
 #         self.pad_to_multiple_of = pad_to_multiple_of
-
-

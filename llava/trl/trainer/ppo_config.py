@@ -176,5 +176,3 @@ class PPOConfig:
         for key, value in self.__dict__.items():
             output_dict[key] = value
         return flatten_dict(output_dict)
-
-

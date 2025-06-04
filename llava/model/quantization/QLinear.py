@@ -325,5 +325,3 @@ class QuantLinear(Function):
             grad_bias = None
 
         return Qgrad_input_transform, GIscale, RQgrad_weight, grad_bias, None, None, None, None, None, None
-
-

@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 import llava
 from llava import conversation as conversation_lib
+from llava.data.builder import DATASETS
 from llava.eval.mmmu_utils.eval_utils import parse_choice
 from llava.utils import distributed as dist
 from llava.utils import io
@@ -36,9 +37,10 @@ def main() -> None:
     parser.add_argument("--model-base", type=str)
     parser.add_argument("--conv-mode", type=str, required=True)
     parser.add_argument("--generation-config", type=json.loads)
-    parser.add_argument("--video-dir", type=str, required=True)
     parser.add_argument("--output-dir", type=str, required=True)
     args = parser.parse_args()
+
+    video_dir = args.video_dir = DATASETS["cinepile"]["video_dir"]
 
     # Set up distributed environment
     dist.init()
@@ -106,5 +108,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

@@ -59,5 +59,3 @@ class QuantizationConfig:
 
         self.row_blocksize = row_blocksize
         self.col_blocksize = col_blocksize
-
-

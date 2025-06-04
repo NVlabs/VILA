@@ -154,5 +154,3 @@ def fp8_dequantize(x, s_x, QB):
         y = y.reshape(BS, -1, y.shape[-1])
 
     return y
-
-

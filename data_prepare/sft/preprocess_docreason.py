@@ -29,5 +29,3 @@ for id, line in tqdm(enumerate(lines)):
 
 with open(json_file_processed, "w") as f:
     json.dump(records, f)
-
-

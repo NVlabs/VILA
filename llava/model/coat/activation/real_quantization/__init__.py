@@ -23,5 +23,3 @@ from .mul_bwd import fp8_mul_backward
 from .mul_fwd import fp8_mul_forward
 from .silu_bwd import fp8_silu_backward
 from .silu_fwd import fp8_silu_forward
-
-

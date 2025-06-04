@@ -10,15 +10,19 @@ from transformers import PreTrainedTokenizer
 
 from llava.constants import DEFAULT_IMAGE_TOKEN
 from llava.data.base import BaseDataset
+from llava.data.dataset_impl.utils import _process_image, _remove_media_tokens
 from llava.media import Image, Video
-from llava.mm_utils import dynamic_process_images_and_prompt, process_images
+from llava.mm_utils import (
+    dynamic_process_images_and_prompt,
+    dynamic_s2_process_images_and_prompt,
+    get_original_image_size,
+    process_images,
+)
 from llava.train.args import DataArguments
 from llava.utils import io, make_list
 from llava.utils.logging import logger
 from llava.utils.media import extract_media
 from llava.utils.tokenizer import preprocess_conversation
-
-from .utils import _process_image, _remove_media_tokens
 
 __all__ = [
     "LLaVACOTDataset",
@@ -68,11 +72,15 @@ class LLaVACOTDataset(BaseDataset):
         if "image" in instance:
             for image_path in make_list(instance["image"]):
                 medias.append(Image(os.path.join(self.media_dir, image_path)))
+            if self.data_args.max_num_images is not None:
+                medias = medias[: min(self.data_args.max_num_images, len(medias))]
 
         # NOTE(ligeng): quick workaround for idefics2_sft
         if "images" in instance:
             for image_path in make_list(instance["images"]):
                 medias.append(Image(os.path.join(self.media_dir, image_path)))
+            if self.data_args.max_num_images is not None:
+                medias = medias[: min(self.data_args.max_num_images, len(medias))]
 
         if "video" in instance:
             for video_path in make_list(instance["video"]):
@@ -102,19 +110,36 @@ class LLaVACOTDataset(BaseDataset):
 
             # Process media
             if "image" in media:
-                if self.enable_dynamic_res and self.data_args.image_aspect_ratio == "dynamic":
+                if self.enable_dynamic_res_s2:
+                    processed_images, block_sizes = dynamic_s2_process_images_and_prompt(
+                        media["image"], conversation[0]["value"], self.data_args
+                    )
+                elif self.enable_dynamic_res and self.data_args.image_aspect_ratio == "dynamic":
                     processed_images, processed_prompt = dynamic_process_images_and_prompt(
                         media["image"], conversation[0]["value"], self.data_args
                     )
                     conversation[0]["value"] = processed_prompt
+                elif self.enable_dynamic_res_s2:
+                    processed_images, block_sizes = dynamic_s2_process_images_and_prompt(
+                        media["image"], conversation[0]["value"], self.data_args
+                    )
                 else:
                     processed_images = _process_image(media["image"], self.data_args)
+                original_image_sizes = [get_original_image_size(img) for img in media["image"]]
 
             # Prepare "input_ids" and "labels" for training
-            data = preprocess_conversation(conversation, self.tokenizer, no_system_prompt=self.no_system_prompt)
+            data = preprocess_conversation(
+                conversation, self.tokenizer, no_system_prompt=self.prepend_empty_system_prompt
+            )
 
             if "image" in media:
                 data["image"] = processed_images
+                data["original_image_sizes"] = original_image_sizes
+                if self.enable_dynamic_res_s2:
+                    data["block_sizes"] = block_sizes
+
+                if self.enable_dynamic_res_s2:
+                    data["block_sizes"] = block_sizes
 
         except Exception as e:
             logger.exception(f"Error processing instance '{instance}': '{e}'.")
@@ -174,5 +199,3 @@ def process_multi_img(self, instance: Dict[str, Any], index: int) -> List[Dict[s
     assert len(medias) == 0, f"#Num of <images> does not match the number of images in the instance. {instance}"
 
     return messages
-
-

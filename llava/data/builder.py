@@ -4,13 +4,13 @@ from itertools import chain
 from typing import Any, List, Optional
 
 import torch
+import torch.distributed as dist
 from hydra.utils import instantiate
 from torch.utils.data import ConcatDataset, Dataset
 from transformers import PreTrainedTokenizer
 
 from llava.data.datasets_mixture import DATASETS_LEGACY
 from llava.train.args import DataArguments, TrainingArguments
-from llava.utils import distributed as dist
 from llava.utils import io
 from llava.utils.logging import logger
 
@@ -88,11 +88,12 @@ def build_dataset(
     training_args: TrainingArguments,
     tokenizer: PreTrainedTokenizer,
 ) -> Dataset:
-    logger.warning(f"Using mixture '{mixture}'.")
+    logger.warning(f"Training VILA with mixture '{mixture}'.")
     datasets = []
     for name in parse_mixture(mixture):
         slice_subset = False
         if "@" in name:
+            # NOTE: @ is a special tag to indicate that the dataset is a subset of another dataset
             try:
                 name, subset_choice = name.split("@")
                 slice_subset = True
@@ -105,6 +106,7 @@ def build_dataset(
             # logger.warning(f"Using subset '{subset_choice}' for dataset '{name}'.")
 
         if "*" in name:
+            # NOTE: * is a special tag to indicate that the dataset is repeated
             name, times = name.split("*")
             times = int(times)
         else:
@@ -113,6 +115,7 @@ def build_dataset(
         if DATASETS is not None and name in DATASETS:
             if name in DATASETS_LEGACY:
                 logger.warning(f"Dataset '{name}' exists in both new and legacy registries. Using the new one.")
+
             dataset = instantiate(DATASETS[name], _partial_=True)(
                 tokenizer=tokenizer,
                 data_args=data_args,
@@ -159,11 +162,14 @@ def build_dataset_legacy(
         LazyCoyoDataset,
         LazyCoyoWebDataset,
         LazyMMC4Dataset,
+        LazyQAGroundingDataset,
         LazySupervisedDataset,
         LazyVideoWebDataset,
         LazyWDSDataset,
     )
     from llava.data.dataset_impl.coyo_recap import LazyCoyoWebRecapDataset
+    from llava.data.dataset_impl.general_img_text import LazyImageTextWebDataset
+    from llava.data.dataset_impl.hiertext import VILAHierText
     from llava.data.dataset_impl.panda70m import VILAPanda70m
     from llava.data.dataset_impl.sam import LazySAMWebDataset
     from llava.data.dataset_impl.textocr import VILATextOCR
@@ -191,12 +197,18 @@ def build_dataset_legacy(
         dataset_cls = LazyCoyoWebRecapDataset
     elif dataset_type == "textocr":
         dataset_cls = VILATextOCR
+    elif dataset_type == "hiertext":
+        dataset_cls = VILAHierText
     elif dataset_type == "panda70m":
         dataset_cls = VILAPanda70m
     elif dataset_type == "ccs-wds":
         dataset_cls = LazyCCSWebDataset
     elif dataset_type == "video-wds":
         dataset_cls = LazyVideoWebDataset
+    elif dataset_type == "imgtxt-wds":
+        dataset_cls = LazyImageTextWebDataset
+    elif dataset_type == "qa_grounding":
+        dataset_cls = LazyQAGroundingDataset
     else:
         raise NotImplementedError(f"{dataset_type} is not supported.")
 
@@ -213,5 +225,3 @@ def build_dataset_legacy(
         data_args=data_args,
         training_args=training_args,
     )
-
-

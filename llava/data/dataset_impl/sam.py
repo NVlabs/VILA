@@ -230,5 +230,3 @@ if __name__ == "__main__":
     for idx, data in enumerate(dst):
         print(idx, data.keys())
 # nvcode: off
-
-

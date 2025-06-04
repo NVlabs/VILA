@@ -136,5 +136,3 @@ async def main(data_list):
 
 
 asyncio.run(main(metadata_list))
-
-

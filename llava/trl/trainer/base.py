@@ -44,5 +44,3 @@ class BaseTrainer(PyTorchModelHubMixin):
 
     def _save_pretrained(self, save_directory):
         raise NotImplementedError("Not implemented")
-
-

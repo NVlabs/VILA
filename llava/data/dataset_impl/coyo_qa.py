@@ -23,7 +23,7 @@ from PIL import Image
 import llava.data.datasets_mixture as datasets_mixture
 from llava.constants import DEFAULT_IMAGE_TOKEN, IGNORE_INDEX
 from llava.data.dataset import preprocess, preprocess_multimodal
-from llava.mm_utils import process_image, tokenizer_image_token
+from llava.mm_utils import get_original_image_size, process_image, tokenizer_image_token
 from llava.model import *
 from llava.train.args import DataArguments, TrainingArguments
 
@@ -96,6 +96,7 @@ class LazyCoyoWebQADataset(LazyCoyoWebDataset):
         targets = []
         image_list = []
         block_sizes = []
+        original_image_sizes = []
 
         for idx in range(begin_idx, end_idx):
             info = self.dataset[idx]
@@ -128,7 +129,7 @@ class LazyCoyoWebQADataset(LazyCoyoWebDataset):
                     image_path, self.data_args, image_folder=None, enable_dynamic_s2=True
                 )
                 image_list.append(images)
-                block_sizes.append(block_size)
+                block_sizes.append([block_size])
                 n_images = 1
             elif self.data_args.image_aspect_ratio == "dynamic":
                 images = process_image(
@@ -140,6 +141,7 @@ class LazyCoyoWebQADataset(LazyCoyoWebDataset):
                 image = process_image(image_path, self.data_args, image_folder=None)
                 image_list.append(image.unsqueeze(0))
                 n_images = 1
+            original_image_sizes.append([get_original_image_size(image_path)])
 
             ## always use original caption
             caption = caption.replace("<image>", "<IMAGE>")
@@ -189,19 +191,25 @@ class LazyCoyoWebQADataset(LazyCoyoWebDataset):
             targets.append(targets_i)
 
         input_ids = [
-            torch.concat([torch.tensor([self.tokenizer.bos_token_id]), input_ids_i])
-            if input_ids_i[0] != self.tokenizer.bos_token_id
-            else input_ids_i
+            (
+                torch.concat([torch.tensor([self.tokenizer.bos_token_id]), input_ids_i])
+                if input_ids_i[0] != self.tokenizer.bos_token_id
+                else input_ids_i
+            )
             for input_ids_i in input_ids
         ]
 
         for i in range(len(targets)):
             targets[i][targets[i] == self.tokenizer.pad_token_id] = IGNORE_INDEX
 
-        data_dict = dict(input_ids=input_ids, labels=targets, image=image_list, video=[[], [], [], []])
+        data_dict = dict(
+            input_ids=input_ids,
+            labels=targets,
+            image=image_list,
+            original_image_sizes=original_image_sizes,
+            video=[[], [], [], []],
+        )
         if self.data_args.image_aspect_ratio == "dynamic_s2":
             data_dict["block_sizes"] = block_sizes
 
         return data_dict
-
-

@@ -197,5 +197,3 @@ def fp8_add_Ifp_Ifp_Ofp_Opt(x1, x2, QB, fp8type, stochastic=False):  # suppose x
         s_y2 = s_y2.reshape(BS, -1, s_y2.shape[-1])
 
     return y1, (qy2, s_y2_max, s_y2)
-
-

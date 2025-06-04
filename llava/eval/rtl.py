@@ -19,10 +19,21 @@ from llava.utils.logging import logger
 
 
 def decode_time_token(text: str, *, duration: float, num_time_tokens: int, time_token_format: str) -> str:
+    """Replace time tokens in text with actual timestamps."""
     for t in range(num_time_tokens):
         time_token = time_token_format.format(t=t)
-        t = round(t * duration / (num_time_tokens - 1), 2)
-        text = text.replace(time_token, f"<{t}>")
+        timestamp = round(t * duration / (num_time_tokens - 1), 2)
+        text = text.replace(time_token, f"<{timestamp}>")
+
+    # Handle out-of-range time tokens
+    excess_pattern = re.compile(rf"<t(\d+)>")
+    matches = excess_pattern.findall(text)
+    for match in matches:
+        t = int(match)
+        if t >= num_time_tokens:
+            timestamp = round(duration, 2)  # Map to the end of the video
+            text = text.replace(f"<t{t}>", f"<{timestamp}>")
+
     return text
 
 
@@ -133,5 +144,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

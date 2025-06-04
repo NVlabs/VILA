@@ -106,10 +106,12 @@ lmms-llava_in_the_wild:
 lmms-longvideobench_test_v:
     tags:
         - submission
+        - video
 
 lmms-longvideobench_val_v:
     tags:
         - local
+        - video
     metrics:
         accuracy: results/longvideobench_val_v/lvb_acc,none
 
@@ -260,6 +262,7 @@ lmms-textvqa_val:
 lmms-videochatgpt:
     tags:
         - openai
+        - video
     metrics:
         correctness: results/videochatgpt/gpt_eval_score_correctness,none
         detailed: results/videochatgpt/gpt_eval_score_detailed_orientation,none
@@ -404,10 +407,103 @@ mathvista_testmini:
     metrics:
         accuracy: average/accuracy
 
-textvqa_val:
+scicap:
+    tags:
+        - finetuning
+        - scicap
+    metrics:
+        accuracy: accuracy
+
+tallyqa:
+    tags:
+        - finetuning
+        - tallyqa
+    metrics:
+        accuracy: accuracy
+
+widgetcap:
+    tags:
+        - finetuning
+        - widgetcap
+    metrics:
+        accuracy: accuracy
+
+nuscenes:
+    tags:
+        - finetuning
+        - nuscenes
+    metrics:
+        accuracy: accuracy
+
+aitz:
+    tags:
+        - finetuning
+        - aitz
+    metrics:
+        accuracy: accuracy
+
+pathvqa:
+    tags:
+        - finetuning
+        - pathvqa
+    metrics:
+        accuracy: accuracy
+
+pmcvqa:
+    tags:
+        - finetuning
+        - pmcvqa
+    metrics:
+        accuracy: accuracy
+
+refcoco:
+    tags:
+        - finetuning
+        - refcoco-train
+        - refcoco
+    metrics:
+        accuracy: accuracy
+
+textvqa:
     tags:
         - core
         - local
         - regression
     metrics:
         accuracy: accuracy
+
+lmms-youcook2_val:
+    tags:
+        - youcook2-ft
+        - finetune
+    metrics:
+        Bleu4: results/youcook2_val/Bleu_4,none
+        Bleu3: results/youcook2_val/Bleu_3,none
+        Bleu2: results/youcook2_val/Bleu_2,none
+        Bleu1: results/youcook2_val/Bleu_1,none
+        Meteor: results/youcook2_val/METEOR,none
+        Rouge_L: results/youcook2_val/ROUGE_L,none
+        Cider: results/youcook2_val/CIDEr,none
+
+lmms-vstar:
+    tags:
+        - core
+        - local
+    metrics:
+        average: results/vstar/average,none
+        direct_attributes: results/vstar/direct_attributes,none
+        relative_position: results/vstar/relative_position,none
+
+lmms-4kpro_multi_choice:
+    tags:
+        - core
+        - local
+    metrics:
+        average: results/4kpro_multi_choice/average,none
+        av: results/4kpro_multi_choice/av,none
+        household: results/4kpro_multi_choice/household,none
+        gaming: results/4kpro_multi_choice/gaming,none
+        ui: results/4kpro_multi_choice/ui,none
+        4K: results/4kpro_multi_choice/4K,none
+        2K: results/4kpro_multi_choice/2K,none
+        1K: results/4kpro_multi_choice/1K,none

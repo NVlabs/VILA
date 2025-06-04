@@ -266,5 +266,3 @@ def get_data_parallel_size():
 def get_data_parallel_rank():
     """Get the rank of this process in the data parallel group the caller rank belongs to."""
     return PROCESS_GROUP_MANAGER.dp_rank
-
-

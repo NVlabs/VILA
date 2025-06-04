@@ -27,5 +27,3 @@ def _remove_media_tokens(text: str) -> str:
     for token in ["<image>", "<video>"]:
         text = text.replace(token + "\n", "").replace("\n" + token, "").replace(token, "")
     return text.strip()
-
-

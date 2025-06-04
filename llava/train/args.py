@@ -29,6 +29,7 @@ class DataArguments:
     image_aspect_ratio: Optional[str] = "resize"
     min_tiles: Optional[int] = 1
     max_tiles: Optional[int] = 12
+    video_max_tiles: Optional[int] = 1  # value larger than 1 means we're training w/ tiling for videos.
     data_mixture: str = "llava_1_5_mm_align"
     eval_data_mixture: str = None
     vflan_no_system_prompt: bool = False
@@ -37,6 +38,9 @@ class DataArguments:
     # for video training
     num_video_frames: int = 8
     fps: float = 0.0  # 0.0 means we do not use fps at all. Always sample the same number of frames.
+
+    # for efficient training
+    max_num_images: Optional[int] = field(default=None)
 
 
 @dataclass
@@ -58,14 +62,22 @@ class ModelArguments:
     dynamic_s2: bool = field(default=False)
     s2_scales: Optional[str] = field(default="336,672,1008")
     s2_max_split_size: int = field(default=336)
+    s2_resize_output_to_scale_idx: int = field(default=0)
     num_time_tokens: int = field(default=0)
     time_token_format: str = field(default="<t{t}>")
     soft_ce_std: float = field(default=1.0)
 
     image_encoder: str = field(default='{"_target_": "llava.model.encoders.BasicImageEncoder"}')
     video_encoder: str = field(default='{"_target_": "llava.model.encoders.BasicVideoEncoder"}')
-    s2_resize_output_to_scale_idx: int = field(default=0)
 
+    # PS3 configs
+    ps3: bool = field(default=False)
+    look_close_mode: Optional[str] = field(default="after_image")
+    num_look_close: int = field(default=1)
+    num_token_look_close: Optional[int] = field(default=None)
+    top_down_prompt_head_type: Optional[str] = field(default="mlp")
+    high_res_pos_embed: bool = field(default=False)
+    ps3_dynamic_aspect_ratio: bool = field(default=False)
     # Quantization and low precision training
     quantize_model: Optional[str] = field(default="false")
     symm: Optional[bool] = field(default=True)
@@ -91,7 +103,9 @@ class ModelArguments:
         ],
     )
 
-    pad_to_multiple_of: int = 0  # if sequence length * batch size can not be divided by 128, the triton implementation of fp8 matmul when calculating weight gradient will become highly inefficient. Therefore, I want to pad the sequence length to a multiple of some exponent of 2. This will be used in prepare_inputs_labels_for_multimodal()
+    pad_to_multiple_of: int = (
+        0  # if sequence length * batch size can not be divided by 128, the triton implementation of fp8 matmul when calculating weight gradient will become highly inefficient. Therefore, I want to pad the sequence length to a multiple of some exponent of 2. This will be used in prepare_inputs_labels_for_multimodal()
+    )
 
     # Memory Efficient FP8 related
     Ubit: str = field(default="100")
@@ -158,7 +172,9 @@ class ModelArguments:
         ],
     )
 
-    pad_to_multiple_of: int = 0  # if sequence length * batch size can not be divided by 128, the triton implementation of fp8 matmul when calculating weight gradient will become highly inefficient. Therefore, I want to pad the sequence length to a multiple of some exponent of 2. This will be used in prepare_inputs_labels_for_multimodal()
+    pad_to_multiple_of: int = (
+        0  # if sequence length * batch size can not be divided by 128, the triton implementation of fp8 matmul when calculating weight gradient will become highly inefficient. Therefore, I want to pad the sequence length to a multiple of some exponent of 2. This will be used in prepare_inputs_labels_for_multimodal()
+    )
 
     # Memory Efficient FP8 related
     Ubit: str = field(default="100")
@@ -235,6 +251,7 @@ class TrainingArguments(transformers.TrainingArguments):
     lora_llm: bool = False
     lora_vt: bool = False
     dpo: bool = False
+    use_one_logger: bool = False
     longvila_sampler: bool = False
     dpo_beta: float = field(default=0.1)
     mm_projector_lr: Optional[float] = None
@@ -266,4 +283,9 @@ class TrainingArguments(transformers.TrainingArguments):
         metadata={"help": "Whether enter debug mode."},
     )
 
-
+    # PS3 configs
+    tune_top_down_selection: bool = field(default=False)
+    token_selection_loss_weight: float = field(default=0.0)
+    smooth_selection_prob_in_training: bool = field(default=False)
+    train_w_gt_selection_map: bool = field(default=False)
+    ps3_grad_checkpointing: bool = field(default=False)

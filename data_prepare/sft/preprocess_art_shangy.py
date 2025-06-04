@@ -87,5 +87,3 @@ if __name__ == "__main__":
     output_file = "./art500k_processed.jsonl"
     base_path = "./"
     convert_txt_to_jsonl(input_file, output_file)
-
-

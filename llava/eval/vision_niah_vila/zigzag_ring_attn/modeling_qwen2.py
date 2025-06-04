@@ -1395,5 +1395,3 @@ class Qwen2ForTokenClassification(Qwen2PreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
-
-

@@ -11,5 +11,3 @@ class BaseEncoder(nn.Module):
     @property
     def parent(self) -> nn.Module:
         return self._parent[0]
-
-

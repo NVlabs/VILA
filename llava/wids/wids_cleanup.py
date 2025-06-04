@@ -92,5 +92,3 @@ def create_cleanup_background_process(pattern, maxsize=int(1e12), maxfiles=1000,
     p = multiprocessing.Process(target=cleanup_worker, args=(every,))
     p.start()
     return p
-
-

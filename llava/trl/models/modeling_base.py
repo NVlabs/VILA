@@ -69,6 +69,7 @@ class PreTrainedModelWrapper(nn.Module):
         supported_args: (`list`)
             The list of arguments that are supported by the wrapper class.
     """
+
     transformers_parent_class = None
     supported_args = None
     supported_modules = ("v_head",)
@@ -669,5 +670,3 @@ def create_reference_model(
         logging.warning("Pattern passed or found, but no layers matched in the model. Check for a typo.")
 
     return ref_model.eval()
-
-

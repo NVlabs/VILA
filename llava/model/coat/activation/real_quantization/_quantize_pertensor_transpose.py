@@ -147,5 +147,3 @@ def fp8_quantize_pertensor_transpose(x, QB, fp8type, transpose_output_2d=False, 
             qy_t = qy_t.reshape(BS, -1, qy_t.shape[-1])
 
     return qy, s_y_max, qy_t  # y_t is expected to be 2D tensor
-
-

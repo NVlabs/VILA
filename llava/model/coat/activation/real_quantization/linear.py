@@ -299,5 +299,3 @@ def fp8_linear_backward(
         return y, s_y, w_g
     else:
         return y, w_g
-
-

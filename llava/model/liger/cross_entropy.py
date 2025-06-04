@@ -409,5 +409,3 @@ def LigerForCausalLMLoss(
     shift_labels = shift_labels.to(shift_logits.device)
     loss = liger_fixed_cross_entropy(shift_logits, shift_labels, num_items_in_batch, ignore_index, **kwargs)
     return loss
-
-

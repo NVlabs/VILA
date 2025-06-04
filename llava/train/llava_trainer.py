@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import ConcatDataset, Dataset, DistributedSampler, RandomSampler, Sampler
 from transformers import PreTrainedModel, Trainer
@@ -855,3 +856,143 @@ class LLaVATrainer(Trainer):
         self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)
 
 
+class LLaVATopDownTrainer(LLaVATrainer):
+
+    @staticmethod
+    def dice_loss(
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        scale=100,  # 100000.0,
+        eps=1e-6,
+    ):
+        """
+        Compute the DICE loss, similar to generalized IOU for masks
+        Args:
+            inputs: A float tensor of arbitrary shape.
+                    The predictions for each example.
+            targets: A float tensor with the same shape as inputs. Stores the binary
+                    classification label for each element in inputs
+                    (0 for the negative class and 1 for the positive class).
+        """
+        inputs = inputs.flatten(1, 2)
+        targets = targets.flatten(1, 2)
+        numerator = 2 * (inputs / scale * targets).sum(-1)
+        denominator = (inputs / scale).sum(-1) + (targets / scale).sum(-1)
+        loss = 1 - (numerator + eps) / (denominator + eps)
+        loss = loss.mean()
+        return loss
+
+    def token_selection_loss(self, selection_probs, gt_selection_maps):
+        # If using dynamic_aspect_ratio for PS3, selection_probs is a list of lists, where each child list is the selection probs at different scales
+        if type(selection_probs[0]) is list:
+            selection_probs = [
+                torch.cat([selection_probs[i][j] for i in range(len(selection_probs))], dim=0)
+                for j in range(len(selection_probs[0]))
+            ]
+
+        # Filter out the instances without a gt selection map
+        assert (
+            selection_probs[0].shape[0] == gt_selection_maps.shape[0]
+        ), f"{selection_probs[0].shape[0]} != {gt_selection_maps.shape[0]}"
+        image_id_with_loss = (gt_selection_maps.sum(dim=(-1, -2)) > 0).nonzero(as_tuple=True)[0]
+        selection_probs = [probs[image_id_with_loss] for probs in selection_probs]
+        gt_selection_maps = gt_selection_maps[image_id_with_loss]
+
+        token_selection_loss = []
+        for selection_probs_each_scale in selection_probs:
+            gt_each_scale = F.interpolate(
+                gt_selection_maps.unsqueeze(1), size=selection_probs_each_scale.shape[1:], mode="area"
+            ).squeeze(1)
+            gt_each_scale = (gt_each_scale > 0).to(selection_probs_each_scale.dtype)
+            # print(selection_probs_each_scale, gt_each_scale)
+
+            with torch.autocast(device_type="cuda", enabled=False):
+                loss = F.binary_cross_entropy(selection_probs_each_scale, gt_each_scale)
+                loss += self.dice_loss(selection_probs_each_scale, gt_each_scale)
+                token_selection_loss.append(loss)
+        token_selection_loss = sum(token_selection_loss) / len(token_selection_loss)
+
+        return token_selection_loss
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+
+        if num_items_in_batch is not None:
+            num_items_in_batch_tensor = torch.tensor(num_items_in_batch, device=self.args.device)
+            num_items_in_batch = int(self.accelerator.gather(num_items_in_batch_tensor).sum().cpu())
+        if self.model_accepts_loss_kwargs:
+            loss_kwargs = {}
+            if num_items_in_batch is not None:
+                loss_kwargs["num_items_in_batch"] = num_items_in_batch
+            inputs = {**inputs, **loss_kwargs}
+
+        original_image_sizes = inputs["media_config"]["image"]["original_image_sizes"]
+        gt_selection_maps = inputs.pop("gt_selection_maps") if "gt_selection_maps" in inputs else None
+
+        input_ids = inputs["input_ids"]
+        IMAGE_TOKEN_INDEX = model.tokenizer.media_token_ids["image"]
+        num_images_each_instance = (input_ids == IMAGE_TOKEN_INDEX).sum(dim=-1)
+        instance_id_with_image = (num_images_each_instance > 0).nonzero(as_tuple=True)[0]
+
+        if model.look_close_mode == "after_prompt":
+            # find where the user prompt ends and use that position as look close position
+            look_close_positions = model.get_user_prompt_end_id_pos(input_ids)
+            look_close_positions = look_close_positions[instance_id_with_image]
+        elif model.look_close_mode == "after_image":
+            look_close_positions = None
+        else:
+            raise NotImplementedError
+
+        # if model.look_close_mode == 'after_prompt':
+        #     tmp_input_ids = inputs['input_ids'].clone()
+        #     tmp_input_ids = (tmp_input_ids == IMAGE_TOKEN_INDEX) * 100 + (tmp_input_ids != IMAGE_TOKEN_INDEX) * tmp_input_ids
+        #     prompt = model.tokenizer.batch_decode(tmp_input_ids[:1][:, :look_close_positions[0]+1], skip_special_tokens=False)[0]
+        #     full_text = model.tokenizer.batch_decode(tmp_input_ids[:1], skip_special_tokens=False)[0]
+        #     if torch.distributed.get_rank() == 0:
+        #         print("Prompt:", prompt)
+        #         print("Full text:", full_text)
+
+        if model.look_close_mode == "after_image":
+            top_down_prompts = None
+        elif model.look_close_mode == "after_prompt":
+            top_down_prompts = model(
+                **inputs, look_close_positions=look_close_positions, get_top_down_prompts_only=True
+            )
+        else:
+            raise NotImplementedError
+
+        # For now we still look close after image even when look_close_mode is after_prompt
+        if model.look_close_mode == "after_prompt":
+            # input_ids_with_image = input_ids[instance_id_with_image]
+            # look_close_positions = [(ids == IMAGE_TOKEN_INDEX).nonzero(as_tuple=True)[0][-1] for ids in input_ids_with_image]
+            # look_close_positions = torch.LongTensor(look_close_positions).to(input_ids.device)
+            look_close_positions = None
+
+        outputs = model(
+            **inputs,
+            look_close_positions=look_close_positions,
+            top_down_prompts=top_down_prompts,
+            smooth_selection_prob=getattr(self.args, "smooth_selection_prob_in_training", False),
+            original_image_sizes=original_image_sizes,
+            gt_selection_maps=(
+                gt_selection_maps
+                if gt_selection_maps is not None and getattr(self.args, "train_w_gt_selection_map", False)
+                else None
+            ),
+        )  # for samples that don't have gt_selection_map (all -1), make it to be a all-zero tensor
+
+        autoregressive_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+        top_down_selection_probs = outputs["top_down_selection_probs"] if isinstance(outputs, dict) else outputs[-1]
+
+        loss = autoregressive_loss
+        if torch.isnan(autoregressive_loss):
+            loss = torch.nan_to_num(autoregressive_loss)
+
+        if gt_selection_maps is not None:
+            token_selection_loss = self.token_selection_loss(top_down_selection_probs, gt_selection_maps)
+            loss += token_selection_loss * self.args.token_selection_loss_weight
+        if model.look_close_mode == "after_prompt":
+            dummy_loss_autoregressive = outputs["logits"].norm() * 0
+            dummy_loss_token_selection = top_down_selection_probs[0][0].norm() * 0
+            loss = loss + dummy_loss_autoregressive + dummy_loss_token_selection
+
+        return (loss, outputs) if return_outputs else loss

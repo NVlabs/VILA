@@ -65,5 +65,3 @@ if __name__ == "__main__":
 
     # Call the function with parsed arguments
     download_and_convert_qwen2(convert_args, quantization_args)
-
-

@@ -86,5 +86,3 @@ with open(jsonl_path, "w") as jsonl_file:
         jsonl_file.write("\n")  # Add a newline after each JSON object
 
 print("Processing complete.")
-
-

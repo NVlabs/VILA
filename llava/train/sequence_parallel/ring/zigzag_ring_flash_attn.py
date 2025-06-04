@@ -341,5 +341,3 @@ def zigzag_ring_flash_attn_func(
         return_attn_probs,
         group,
     )
-
-

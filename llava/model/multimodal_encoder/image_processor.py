@@ -544,5 +544,3 @@ class ImageProcessor(BaseImageProcessor):
         }
 
         return BatchFeature(data=data, tensor_type=return_tensors)
-
-

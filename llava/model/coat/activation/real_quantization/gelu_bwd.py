@@ -227,5 +227,3 @@ def fp8_gelu_backward(x, s_x, g, QB, fp8type):
         s_y = s_y.reshape(BS, -1, s_y.shape[-1])
 
     return qy, s_y_max
-
-

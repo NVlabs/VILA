@@ -109,5 +109,3 @@ class TimeoutTerminateCallback(transformers.TrainerCallback):
     def on_train_end(self, args, state, control, **kwargs):
         if state.global_step < state.max_steps:
             exit(124)
-
-

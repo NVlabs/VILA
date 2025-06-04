@@ -364,5 +364,3 @@ class IterativeSFTTrainer(Trainer):
                 self._globalstep_last_logged = self.state.global_step
 
                 self.log(logs)
-
-

@@ -1,6 +1,8 @@
 import glob
 import os
+import tempfile
 from collections import defaultdict
+from io import BytesIO
 from typing import Any, Dict, List, Optional, Union
 
 import cv2
@@ -25,6 +27,13 @@ def _extract_image(image: Union[Image, PIL.Image.Image]) -> PIL.Image.Image:
         else:
             image = PIL.Image.open(image.path)
     return image
+
+
+def _load_video_bytesio(video_bytesio: BytesIO, *, num_frames: int) -> List[PIL.Image.Image]:
+    with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_video:
+        temp_video.write(video_bytesio.read())
+        temp_video_name = temp_video.name
+        return _load_video(temp_video_name, num_frames=num_frames)
 
 
 def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Image.Image]:
@@ -112,5 +121,3 @@ def extract_media(
                 raise ValueError(f"Unsupported prompt part type: {type(part)}")
         message["value"] = text
     return media
-
-

@@ -1,9 +1,10 @@
-""" AutoResume callback.
+"""AutoResume callback.
 
 A transformer trainer callback for interfacing with ADLR's AutoResume SDK.
 
 Copyright 2024 NVIDIA CORPORATION.
 """
+
 import os
 import sys
 
@@ -60,5 +61,3 @@ class AutoResumeCallback(transformers.TrainerCallback):
                         AutoResume.request_resume()
                 control.should_training_stop = True
                 control.should_save = True
-
-

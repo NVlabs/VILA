@@ -34,8 +34,7 @@ def build_mm_projector(model_type_or_path: str, config: PretrainedConfig) -> Pre
         return MultimodalProjector.from_pretrained(model_type_or_path, config, torch_dtype=eval(config.model_dtype))
     ## build from scratch
     else:
+        print("WARNING: Building multimodal projector from scratch!")
         mm_projector_cfg = MultimodalProjectorConfig(model_type_or_path)
         mm_projector = MultimodalProjector(mm_projector_cfg, config).to(eval(config.model_dtype))
         return mm_projector
-
-

@@ -94,5 +94,3 @@ class Coat_quantize_end_func(torch.autograd.Function):
         Qgrad_output = Qgrad_output.view(torch.float8_e4m3fn)
 
         return grad_output, Qgrad_output, Gscale_g16, None, None
-
-

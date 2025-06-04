@@ -1934,5 +1934,3 @@ class CoatOLMo(nn.Module):
             og_keys_to_new[og_key].add(new_key)
 
         return state_dict, og_keys_to_new
-
-
