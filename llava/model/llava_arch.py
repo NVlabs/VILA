@@ -72,13 +72,7 @@ class LlavaMetaModel(ABC):
         self.vision_tower = build_vision_tower(vision_tower_cfg, config)
         self.mm_projector = build_mm_projector(mm_projector_cfg, config)
         # NOTE(ligeng): for xgrammer init, <image> <vila/video> and <vila/sentinel>
-        if isinstance(self.config, dict):
-            self.vocab_size = config.llm.vocab_size + NUM_EXTRA_TOKENS
-        else:
-            self.vocab_size = self.tokenizer.vocab_size + NUM_EXTRA_TOKENS
-            logging.info(
-                f"[XGrammar] config is not a dict, loading vocab size from tokenizer {self.tokenizer.vocab_size} + {NUM_EXTRA_TOKENS} => {self.vocab_size}"
-            )
+        self.vocab_size = self.llm.vocab_size + NUM_EXTRA_TOKENS
 
         # XGrammar tokenizer and grammar compiler
         # lazy init only when specified json output during inference
