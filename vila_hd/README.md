@@ -31,6 +31,14 @@
 
 <hr style="border: 2px solid gray;"></hr>
 
+## TL;DR
+
+We propose PS3, a vision encoder that scales up vision pre-training to 4K resolution with a near-constant cost. We further present VILA-HD which uses PS3 in MLLM and achieves superior results on resolution-sensitive benchmarks.
+
+![Teaser](assets/teaser.png)
+
+<hr style="border: 2px solid gray;"></hr>
+
 ## Latest Updates
 - [2025.5.21] Models & code of PS3 and VILA-HD are released! We released two PS3 models (`PS3-1.5K-SigLIP` and `PS3-4K-SigLIP`) and two VILA-HD models (`VILA-HD-1.5K-8B-SigLIP` and `VILA-HD-4K-8B-SigLIP`).
 - [2025.4.22] Demo of VILA-HD is released! Welcome to give it a try. We are actively improving the model so any feedback is welcome!
@@ -70,7 +78,13 @@ VILA-HD uses pre-trained PS3 models as the vision encoder. To use PS3 models, pl
 
 ## Performance
 
+### Performance on common benchmarks
+
 ![Performance of VILA-HD models](assets/vila_hd_results.png)
+
+### Performance on 4KPro benchmark
+
+![Performance of VILA-HD models on 4KPro](assets/4kpro_results.png)
 
 <hr style="border: 2px solid gray;"></hr>
 
