@@ -337,7 +337,7 @@ NVILA Core contributors: [Zhijian Liu](https://zhijianliu.com), [Ligeng Zhu](htt
 
 LongVILA contributors: [Yukang Chen](https://yukangchen.com/), [Fuzhao Xue](https://xuefuzhao.github.io/), [Dacheng Li](<https://dachengli1.github.io>), [Qinghao Hu](<https://tonyhao.xyz>), [Ligeng Zhu](https://lzhu.me/), [Xiuyu Li](<https://xiuyuli.com>), [Yunhao Fang](https://seerkfang.github.io/), [Haotian Tang](http://kentang.net/), [Shang Yang](https://ys-2020.github.io/), [Zhijian Liu](https://zhijianliu.com), [Ethan He](<>), [Hongxu Yin](https://hongxu-yin.github.io/), [Pavlo Molchanov](https://www.pmolchanov.com/), [Jan Kautz](<https://jankautz.com>), [Linxi Fan](<https://jimfan.me>), [Yuke Zhu](<https://yukezhu.me>), [Yao Lu](https://scholar.google.com/citations?user=OI7zFmwAAAAJ&hl=en), [Song Han](http://songhan.mit.edu/)
 
-VILA-HD contributors: [Baifeng Shi](https://bfshi.github.io), [Boyi Li](https://sites.google.com/site/boyilics/home), [Han Cai](https://han-cai.github.io/), [Yao Lu](https://scholar.google.com/citations?user=OI7zFmwAAAAJ&hl=en), [Sifei Liu](https://sifeiliu.net/), [Marco Pavone](https://research.nvidia.com/person/marco-pavone), [Jan Kautz](<https://jankautz.com>), [Song Han](http://songhan.mit.edu/), [Trevor Darrell](https://people.eecs.berkeley.edu/~trevor/),  [Hongxu Yin](https://hongxu-yin.github.io/), [Pavlo Molchanov](https://www.pmolchanov.com/)
+VILA-HD contributors: [Baifeng Shi](https://bfshi.github.io), [Boyi Li](https://sites.google.com/site/boyilics/home), [Han Cai](https://han-cai.github.io/), [Yao Lu](https://scholar.google.com/citations?user=OI7zFmwAAAAJ&hl=en), [Sifei Liu](https://sifeiliu.net/), [Marco Pavone](https://research.nvidia.com/person/marco-pavone), [Jan Kautz](<https://jankautz.com>), [Song Han](http://songhan.mit.edu/), [Trevor Darrell](https://people.eecs.berkeley.edu/~trevor/),  [Pavlo Molchanov](https://www.pmolchanov.com/), [Hongxu Yin](https://hongxu-yin.github.io/)
 
 <details>
 <summary> VILA-1.5 contributors </summary>
@@ -348,7 +348,7 @@ VILA-HD contributors: [Baifeng Shi](https://bfshi.github.io), [Boyi Li](https://
 
 ## Citations
 
-```
+```bibtex
 @misc{liu2024nvila,
       title={NVILA: Efficient Frontier Visual Language Models},
       author={Zhijian Liu and Ligeng Zhu and Baifeng Shi and Zhuoyang Zhang and Yuming Lou and Shang Yang and Haocheng Xi and Shiyi Cao and Yuxian Gu and Dacheng Li and Xiuyu Li and Yunhao Fang and Yukang Chen and Cheng-Yu Hsieh and De-An Huang and An-Chieh Cheng and Vishwesh Nath and Jinyi Hu and Sifei Liu and Ranjay Krishna and Daguang Xu and Xiaolong Wang and Pavlo Molchanov and Jan Kautz and Hongxu Yin and Song Han and Yao Lu},
@@ -360,7 +360,7 @@ VILA-HD contributors: [Baifeng Shi](https://bfshi.github.io), [Boyi Li](https://
 }
 ```
 
-```
+```bibtex
 @misc{chen2024longvila,
       title={LongVILA: Scaling Long-Context Visual Language Models for Long Videos},
       author={Yukang Chen and Fuzhao Xue and Dacheng Li and Qinghao Hu and Ligeng Zhu and Xiuyu Li and Yunhao Fang and Haotian Tang and Shang Yang and Zhijian Liu and Ethan He and Hongxu Yin and Pavlo Molchanov and Jan Kautz and Linxi Fan and Yuke Zhu and Yao Lu and Song Han},
@@ -372,15 +372,18 @@ VILA-HD contributors: [Baifeng Shi](https://bfshi.github.io), [Boyi Li](https://
 ```
 
 ```bibtex
-@article{shi2025scaling,
-  title={Scaling Vision Pre-Training to 4K Resolution},
-  author={Shi, Baifeng and Li, Boyi and Cai, Han and Lu, Yao and Liu, Sifei and Pavone, Marco and Kautz, Jan and Han, Song and Darrell, Trevor and Molchanov, Pavlo and others},
-  journal={arXiv preprint arXiv:2503.19903},
-  year={2025}
+@misc{shi2025scaling,
+      title={Scaling Vision Pre-Training to 4K Resolution}, 
+      author={Baifeng Shi and Boyi Li and Han Cai and Yao Lu and Sifei Liu and Marco Pavone and Jan Kautz and Song Han and Trevor Darrell and Pavlo Molchanov and Hongxu Yin},
+      year={2025},
+      eprint={2503.19903},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2503.19903},
 }
 ```
 
-```
+```bibtex
 @misc{lin2023vila,
       title={VILA: On Pre-training for Visual Language Models},
       author={Ji Lin and Hongxu Yin and Wei Ping and Yao Lu and Pavlo Molchanov and Andrew Tao and Huizi Mao and Jan Kautz and Mohammad Shoeybi and Song Han},
