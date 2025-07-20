@@ -1,0 +1,3 @@
+[submodule "long_rl"]
+	path = long_rl
+	url = https://github.com/NVlabs/Long-RL
