@@ -13,7 +13,7 @@
 VILA is a family of open VLMs designed to optimize both efficiency and accuracy for efficient video understanding and multi-image understanding. 
 
 ## 💡 News
-
+- \[2025/7\] We release [Long-RL](https://github.com/NVlabs/Long-RL) that supports RL training on VILA/LongVILA/NVILA models with long videos.
 - \[2025/6\] We release [PS3 and VILA-HD](https://nvlabs.github.io/PS3/). PS3 is a vision encoder that scales up vision pre-training to 4K resolution. VILA-HD is VILA with PS3 as the vision encoder and shows superior performance and efficiency in understanding high-resolution detail-rich images.
 - \[2025/1\] As of January 6, 2025 VILA is now part of the new Cosmos Nemotron vision language models.
 - \[2024/12\] We release [NVILA](https://arxiv.org/abs/2412.04468) (a.k.a VILA2.0) that explores the full stack efficiency of multi-modal design, achieving cheaper training, faster deployment and better performance.
@@ -359,7 +359,16 @@ VILA-HD contributors: [Baifeng Shi](https://bfshi.github.io), [Boyi Li](https://
       url={https://arxiv.org/abs/2412.04468},
 }
 ```
-
+```bibtex
+@article{chen2025longvila-r1,
+      title={Scaling RL to Long Videos},
+      author={Yukang Chen and Wei Huang and Baifeng Shi and Qinghao Hu and Hanrong Ye and Ligeng Zhu and Zhijian Liu and Pavlo Molchanov and Jan Kautz and Xiaojuan Qi and Sifei Liu and Hongxu Yin and Yao Lu and Song Han},
+      year={2025},
+      eprint={2507.07966},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
 ```bibtex
 @misc{chen2024longvila,
       title={LongVILA: Scaling Long-Context Visual Language Models for Long Videos},
