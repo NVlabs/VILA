@@ -33,13 +33,17 @@
 
 ## TL;DR
 
-We propose PS3, a vision encoder that scales up vision pre-training to 4K resolution with a near-constant cost. We further present VILA-HD which uses PS3 in MLLM and achieves superior results on resolution-sensitive benchmarks.
+We propose PS3, a vision encoder that scales up vision pre-training to 4K resolution with a near-constant cost. We further present VILA-HD which uses PS3 in MLLM and achieves superior results on resolution-sensitive benchmarks. We show that PS3 outperforms state-of-the-art vision encoders (e.g., SigLIP2 and Perception Encoder) on 23 benchmarks and VILA-HD outperforms state-of-the-art MLLMs (e.g., NVILA, Qwen2.5-VL) on multiple high-resolution and general VQA benchmarks.
 
 ![Teaser](assets/teaser.png)
 
 <hr style="border: 2px solid gray;"></hr>
 
 ## Latest Updates
+- [2025.8.3] New checkpoints of PS3 and VILA-HD are released, with superior performance compared to SOTA vision encoders such as SigLIP2 and Perception Encoder and SOTA MLLMs such as Qwen2.5-VL!
+  - `PS3-1.5K-SigLIP2` and `PS3-4K-SigLIP2` are two new models using SigLIP2-SO400M as the initialization during pre-training
+  - `PS3_Lang-1.5K-SigLIP2` and `PS3_Lang-4K-SigLIP2` are further co-trained with MLLMs based on `PS3-1.5K-SigLIP2` and `PS3-4K-SigLIP2`, leading to better downstream MLLM performance.
+  - `VILA-HD-8B-PS3-1.5K-SigLIP2` and `VILA-HD-8B-PS3-4K-SigLIP2` are VILA-HD models trained on top of `PS3-1.5K-SigLIP2` and `PS3-4K-SigLIP2`.
 - [2025.5.21] Models & code of PS3 and VILA-HD are released! We released two PS3 models (`PS3-1.5K-SigLIP` and `PS3-4K-SigLIP`) and two VILA-HD models (`VILA-HD-1.5K-8B-SigLIP` and `VILA-HD-4K-8B-SigLIP`).
 - [2025.4.22] Demo of VILA-HD is released! Welcome to give it a try. We are actively improving the model so any feedback is welcome!
 - [2025.4.4] Selected as conference highlight at CVPR 2025. See you in Nashville!
@@ -62,6 +66,8 @@ Try out the VILA-HD demo [here](https://huggingface.co/spaces/bfshi/VILA-HD-demo
 
 | Vision Model    | Max Resolution | Pre-Trained Weights                                                     |
 |-----------------|----------------|-------------------------------------------------------------------------|
+| VILA-HD-8B-PS3-1.5K-SigLIP2 | 1512 * 1512    | [nvidia/VILA-HD-8B-PS3-1.5K-SigLIP2](https://huggingface.co/nvidia/VILA-HD-8B-PS3-1.5K-SigLIP2) |
+| VILA-HD-8B-PS3-4K-SigLIP2   | 3780 * 3780    | [nvidia/VILA-HD-8B-PS3-4K-SigLIP2](https://huggingface.co/nvidia/VILA-HD-8B-PS3-4K-SigLIP2)     |
 | VILA-HD-8B-PS3-1.5K-SigLIP | 1512 * 1512    | [nvidia/VILA-HD-8B-PS3-1.5K-SigLIP](https://huggingface.co/nvidia/VILA-HD-8B-PS3-1.5K-SigLIP) |
 | VILA-HD-8B-PS3-4K-SigLIP   | 3780 * 3780    | [nvidia/VILA-HD-8B-PS3-4K-SigLIP](https://huggingface.co/nvidia/VILA-HD-8B-PS3-4K-SigLIP)     |
 
@@ -71,6 +77,10 @@ VILA-HD uses pre-trained PS3 models as the vision encoder. To use PS3 models, pl
 
 | Vision Model    | Max Resolution | Pre-Trained Weights                                                     |
 |-----------------|----------------|-------------------------------------------------------------------------|
+| PS3_Lang-1.5K-SigLIP2 | 1512 * 1512    | [nvidia/PS3_Lang-1.5K-SigLIP2](https://huggingface.co/nvidia/PS3_Lang-1.5K-SigLIP2) |
+| PS3_Lang-4K-SigLIP2   | 3780 * 3780    | [nvidia/PS3_Lang-4K-SigLIP2](https://huggingface.co/nvidia/PS3_Lang-4K-SigLIP2)     |
+| PS3-1.5K-SigLIP2 | 1512 * 1512    | [nvidia/PS3-1.5K-SigLIP2](https://huggingface.co/nvidia/PS3-1.5K-SigLIP2) |
+| PS3-4K-SigLIP2   | 3780 * 3780    | [nvidia/PS3-4K-SigLIP2](https://huggingface.co/nvidia/PS3-4K-SigLIP2)     |
 | PS3-1.5K-SigLIP | 1512 * 1512    | [nvidia/PS3-1.5K-SigLIP](https://huggingface.co/nvidia/PS3-1.5K-SigLIP) |
 | PS3-4K-SigLIP   | 3780 * 3780    | [nvidia/PS3-4K-SigLIP](https://huggingface.co/nvidia/PS3-4K-SigLIP)     |
 
@@ -78,13 +88,23 @@ VILA-HD uses pre-trained PS3 models as the vision encoder. To use PS3 models, pl
 
 ## Performance
 
-### Performance on common benchmarks
+### Performance on high-res benchmarks
 
-![Performance of VILA-HD models](assets/vila_hd_results.png)
+Here VILA-HD-8B-4K stand for `VILA-HD-8B-PS3-4K-SigLIP2`.
+
+![Performance of VILA-HD models on high-res benchmarks](assets/vila_hd_highres_results.png)
+
+### Performance on general benchmarks
+
+Here VILA-HD-8B-1.5K and VILA-HD-8B-4K stand for `VILA-HD-8B-PS3-1.5K-SigLIP2` and `VILA-HD-8B-PS3-4K-SigLIP2`.
+
+![Performance of VILA-HD models on general benchmarks](assets/vila_hd_general_results.png)
 
 ### Performance on 4KPro benchmark
 
-![Performance of VILA-HD models on 4KPro](assets/4kpro_results.png)
+Here VILA-HD-8B-1.5K and VILA-HD-8B-4K stand for `VILA-HD-8B-PS3-1.5K-SigLIP2` and `VILA-HD-8B-PS3-4K-SigLIP2`.
+
+<img src="assets/4kpro_results.png" alt="drawing" width="600"/>
 
 <hr style="border: 2px solid gray;"></hr>
 
