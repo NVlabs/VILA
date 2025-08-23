@@ -66,6 +66,7 @@ class LlavaConfig(PretrainedConfig):
         time_token_format=None,
         image_encoder: str = '{"_target_": "llava.model.encoders.BasicImageEncoder"}',
         video_encoder: str = '{"_target_": "llava.model.encoders.BasicVideoEncoder"}',
+        model_dtype: str = "torch.bfloat16",
         **kwargs,
     ):
         super().__init__()
@@ -110,6 +111,8 @@ class LlavaConfig(PretrainedConfig):
 
         self.image_encoder = image_encoder
         self.video_encoder = video_encoder
+
+        self.model_dtype = model_dtype
 
 
 class JsonSchemaResponseFormat(BaseModel):
