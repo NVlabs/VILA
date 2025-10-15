@@ -115,26 +115,82 @@ https://github.com/Efficient-Large-Model/VILA/assets/7783214/80c47742-e873-4080-
 
 ## Installation
 
-1.  Install [Anaconda Distribution](https://www.anaconda.com/download).
-2.  Install the necessary Python packages in the environment.
+Follow these steps in order to set up VILA:
 
-    ```bash
-    ./environment_setup.sh vila
-    ```
+### Prerequisites
 
-3.  (Optional) If you are an NVIDIA employee with a wandb account, install
-    onelogger and enable it by setting `training_args.use_one_logger` to `True`
-    in `llava/train/args.py`.
+1. Ensure you have a Linux machine with CUDA-compatible GPU
+2. Make sure you have `wget` installed for downloading Miniconda
 
-    ```bash
-    pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
-    ```
+### Step 1: Install Miniconda
 
-4.  Activate a conda environment.
+If you don't have Miniconda installed, first make the script executable and run it:
 
-    ```bash
-    conda activate vila
-    ```
+```bash
+./install_miniconda.sh
+```
+
+This will:
+- Download Miniconda3-latest-Linux-x86_64.sh
+- Install Miniconda
+- Start a new bash session
+
+### Step 2: Initialize Conda and Create Environment
+
+```bash
+./activate_miniconda.sh
+```
+
+This will:
+- Accept conda terms of service
+- Create a new conda environment named 'vila' with Python 3.10
+- Prepare the environment for VILA installation
+
+### Step 3: Activate Environment (for future sessions)
+
+For subsequent sessions, simply activate the environment:
+
+```bash
+conda activate vila
+```
+
+### Step 4: Install VILA Dependencies
+
+```bash
+./environment_setup.sh
+```
+
+This comprehensive script will:
+- Activate the 'vila' conda environment
+- Install CUDA Toolkit via conda
+- Install PS3 Torch and required packages
+- Install FlashAttention2 for optimized performance
+- Install VILA in editable mode with training and evaluation dependencies
+- Install Triton for quantization support
+- Replace necessary transformers and deepspeed files
+- Downgrade protobuf for backward compatibility
+
+### Optional: NVIDIA Employee Setup
+
+If you are an NVIDIA employee with a wandb account, install onelogger and enable it by setting `training_args.use_one_logger` to `True` in `llava/train/args.py`:
+
+```bash
+pip install --index-url=https://sc-hw-artf.nvidia.com/artifactory/api/pypi/hwinf-mlwfo-pypi/simple --upgrade one-logger-utils
+```
+
+### Verification
+
+To verify your installation, you can test inference:
+
+```bash
+vila-infer \
+    --model-path Efficient-Large-Model/NVILA-15B \
+    --conv-mode auto \
+    --text "Please describe the image" \
+    --media demo_images/demo_img.png
+```
+
+**Note:** The initial model download may take some time depending on your internet connection.
 
 ## Training
 
