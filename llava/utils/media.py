@@ -33,10 +33,14 @@ def _load_video_bytesio(video_bytesio: BytesIO, *, num_frames: int) -> List[PIL.
     with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_video:
         temp_video.write(video_bytesio.read())
         temp_video_name = temp_video.name
-        return _load_video(temp_video_name, num_frames=num_frames)
+        return _load_video(temp_video_name, num_frames=num_frames, fps=0.0)
 
 
 def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Image.Image]:
+    # Ensure fps is not None
+    if fps is None:
+        fps = 0.0
+        
     # Load video frames from a directory
     if os.path.isdir(video_path):
         frame_paths = sorted(glob.glob(os.path.join(video_path, "*")))
@@ -86,6 +90,9 @@ def _load_video(video_path: str, *, num_frames: int, fps: float) -> List[PIL.Ima
 def _extract_video(video: Video, config: PretrainedConfig) -> List[PIL.Image.Image]:
     num_frames = config.num_video_frames
     fps = getattr(config, "fps", 0.0)
+    # Ensure fps is not None
+    if fps is None:
+        fps = 0.0
     frames = _load_video(video.path, num_frames=num_frames, fps=fps)
     return frames
 
