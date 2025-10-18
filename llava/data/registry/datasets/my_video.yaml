@@ -1,0 +1,8 @@
+my_video_sft:
+  type: jsonl_conversation_video
+  ann_path: /data/my_video_sft/train.jsonl
+  media_dir: /
+  # Optional knobs if your loader supports them:
+  # video_num_frames: 32
+  # frame_sampling: uniform   # or "rand", "stride", etc. depending on the loader
+  # max_samples: null         # limit for debugging

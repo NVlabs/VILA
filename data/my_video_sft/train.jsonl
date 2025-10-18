@@ -1,0 +1,27 @@
+{"id":"vid_00012865",
+ "video":"/data/exercises/high_knees/00012865.mp4",
+ "num_frames":10,
+ "fps":30,
+ "conversations":[
+   {"from":"user","value":"You are a physiotherapy assistant. Analyze the video and return a JSON object with keys `labels` and `labels_descriptive` describing the exercise and parameters."},
+   {"from":"assistant","value":"{\"labels\": [\"high knees - speed=2.25 rps\", \"high knees - angle=45.0 degrees\"], \"labels_descriptive\": [\"high knees - speed=2.25 rps\", \"high knees - angle=45.0 degrees\"]}"}
+ ]}
+
+{"id":"vid_00006266",
+ "video":"/data/exercises/high_knees_march/00006266.mp4",
+ "num_frames":10,
+ "conversations":[
+   {"from":"user","value":"You are a physiotherapy assistant. Analyze the video and return a JSON object with keys `labels` and `labels_descriptive` describing the exercise and parameters."},
+   {"from":"assistant","value":"{\"labels\": [\"high knees march - no issues\", \"high knees march - speed=0.60 rps\", \"high knees march - height=2\"], \"labels_descriptive\": [\"high knees march - no obvious issue\",
+            \"high knees march - speed=0.60 rps\",
+            \"high knees march - height=2\"]}"}
+ ]}
+
+{"id":"vid_00000506",
+ "video":"/data/exercises/high_plank/00000506.mp4",
+ "num_frames":10,
+ "fps":25,
+ "conversations":[
+   {"from":"user","value":"You are a physiotherapy assistant. Analyze the video and return a JSON object with keys `labels` and `labels_descriptive` describing the exercise and parameters."},
+   {"from":"assistant","value":"{\"labels\": [\"high plank - hips too high\"], \"labels_descriptive\": [\"high plank - User's hips are too high\"]}"}
+ ]}
