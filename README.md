@@ -13,6 +13,7 @@
 VILA is a family of open VLMs designed to optimize both efficiency and accuracy for efficient video understanding and multi-image understanding. 
 
 ## 💡 News
+- \[2025/7\] We release [OmniVinci](https://github.com/NVlabs/OmniVinci), a state-of-the-art visual-audio joint understanding omni-modal LLM built upon VILA codebase!
 - \[2025/7\] We release [Long-RL](https://github.com/NVlabs/Long-RL) that supports RL training on VILA/LongVILA/NVILA models with long videos.
 - \[2025/6\] We release [PS3 and VILA-HD](https://nvlabs.github.io/PS3/). PS3 is a vision encoder that scales up vision pre-training to 4K resolution. VILA-HD is VILA with PS3 as the vision encoder and shows superior performance and efficiency in understanding high-resolution detail-rich images.
 - \[2025/1\] As of January 6, 2025 VILA is now part of the new Cosmos Nemotron vision language models.
