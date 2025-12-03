@@ -10,8 +10,8 @@ OUTPUT_CSV = "video_inference_output.csv"  # Excel-readable output
 PROMPT = "Please watch this video and describe the main events, actions, and scene in detail."
 
 MODELS = {
-    "NVILA-Lite-3B":     "Efficient-Large-Model/NVILA-Lite-3B",
-    "NVILA-TinyChat-3B": "Efficient-Large-Model/NVILA-3B-TinyChat",
+    "NVILA-8B-Video": "Efficient-Large-Model/NVILA-8B-Video",
+    "NVILA-15B": "Efficient-Large-Model/NVILA-15B",
 }
 # -------------------------------
 
