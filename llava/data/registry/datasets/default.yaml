@@ -1,5 +1,11 @@
----
-dummy:
-    _target_: llava.data.DummyDataset
-    num_instances: 10000
-    comments: dummy dataset for testing
+# ---
+# dummy:
+#     _target_: llava.data.DummyDataset
+#     num_instances: 10000
+#     comments: dummy dataset for testing
+
+QVEDTest:
+    _target_: llava.data.LLaVADataset
+    data_path: /dataset/qved/dataset.json
+    media_dir: /dataset/qved
+    is_video: true 

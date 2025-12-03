@@ -1,18 +1,34 @@
 #!/usr/bin/env bash
 set -e
 
-CONDA_ENV=${1:-""}
-if [ -n "$CONDA_ENV" ]; then
-    # This is required to activate conda environment
-    eval "$(conda shell.bash hook)"
+# CONDA_ENV=${1:-""}
+# if [ -n "$CONDA_ENV" ]; then
+#     # This is required to activate conda environment
+#     eval "$(conda shell.bash hook)"
 
-    conda create -n $CONDA_ENV python=3.10.14 -y
-    conda activate $CONDA_ENV
-    # This is optional if you prefer to use built-in nvcc
-    conda install -c nvidia cuda-toolkit -y
-else
-    echo "Skipping conda environment creation. Make sure you have the correct environment activated."
-fi
+#     conda create -n $CONDA_ENV python=3.10.14 -y
+#     conda activate $CONDA_ENV
+#     # This is optional if you prefer to use built-in nvcc
+#     conda install -c nvidia cuda-toolkit -y
+# else
+#     echo "Skipping conda environment creation. Make sure you have the correct environment activated."
+# fi
+
+
+echo ">>> Activating environment..."
+conda activate vila
+
+# -------------------------------
+# Install dependencies
+# -------------------------------
+echo ">>> Installing CUDA Toolkit..."
+conda install -c nvidia cuda-toolkit -y
+
+echo ">>> Installing PS3 Torch..."
+
+pip install --upgrade pip
+pip install ps3-torch
+pip install hf_transfer
 
 # This is required to enable PEP 660 support
 pip install --upgrade pip setuptools
