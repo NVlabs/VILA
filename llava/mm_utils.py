@@ -220,30 +220,23 @@ def opencv_extract_frames(vpath_or_bytesio, frames=6, max_fps=0.0, fps=None, fra
     """
     import cv2
 
+    def extract(path):
+        vidcap = cv2.VideoCapture(path)
+        try:
+            sampler = get_frame_from_vcap_with_fps if max_fps > 0.0 else get_frame_from_vcap
+            return sampler(vidcap, frames, max_fps, fps=fps, frame_count=frame_count, video_file_name=path)
+        finally:
+            vidcap.release()
+
     if isinstance(vpath_or_bytesio, str):
-        vidcap = cv2.VideoCapture(vpath_or_bytesio)
-        if max_fps > 0.0:
-            return get_frame_from_vcap_with_fps(
-                vidcap, frames, max_fps, fps=fps, frame_count=frame_count, video_file_name=vpath_or_bytesio
-            )
-        return get_frame_from_vcap(
-            vidcap, frames, max_fps, fps=fps, frame_count=frame_count, video_file_name=vpath_or_bytesio
-        )
-    elif isinstance(vpath_or_bytesio, (BytesIO,)):
-        # assuming mp4
-        with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_video:
-            temp_video.write(vpath_or_bytesio.read())
-            temp_video_name = temp_video.name
-            vidcap = cv2.VideoCapture(temp_video_name)
-            if max_fps > 0.0:
-                return get_frame_from_vcap_with_fps(
-                    vidcap, frames, max_fps, fps=fps, frame_count=frame_count, video_file_name=temp_video_name
-                )
-            return get_frame_from_vcap(
-                vidcap, frames, max_fps, fps=fps, frame_count=frame_count, video_file_name=temp_video_name
-            )
-    else:
-        raise NotImplementedError(type(vpath_or_bytesio))
+        return extract(vpath_or_bytesio)
+    if isinstance(vpath_or_bytesio, BytesIO):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "video.mp4")
+            with open(path, "wb") as temp_video:
+                temp_video.write(vpath_or_bytesio.read())
+            return extract(path)
+    raise NotImplementedError(type(vpath_or_bytesio))
 
 
 def load_image_from_base64(image):
